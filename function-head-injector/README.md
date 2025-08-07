@@ -21,8 +21,8 @@ make
 Usage: ./bin/function_injector <input_source_file> <injection_code_file> [-o <output_file>] [-e <exclude_pattern_file>]
   1st arg ... input_source_file   : C/C++ source file to analyze
   2nd arg ... injection_code_file : File containing code to inject at function starts
-  -o output_file: Output file (if not specified, writes to stdout)
-  -e exclude_pattern_file: File containing regex patterns for functions to exclude (one per line)
+  -o output_file          : Output file (if not specified, writes to stdout)
+  -e exclude_pattern_file : File containing regex patterns for functions to exclude (one per line)
 ```
 
 
@@ -40,7 +40,7 @@ printf(">> Function entry: %s:%d\n", __FILE__, __LINE__);
 ./bin/function_injector my_program.c debug_log.txt
 ```
 
-これにより、`my_program.c`の各関数に`debug_printf.txt`の内容が挿入されたプログラムがコンソールに出力されます。　
+これにより、`my_program.c`の各関数に`debug_printf.txt`の内容が挿入されたプログラムがコンソールに出力される。　
 
 
 ## テストの実行
@@ -58,7 +58,4 @@ make clean
 
 ## 注意事項
 
-- libclangがシステムにインストールされている必要があります
-- C++11以上のコンパイラが必要です
-- 挿入されるコードは各関数の開き中括弧`{`の直後に配置されます
-- システムヘッダーファイル内の関数定義も検出される場合があります
+- libclangがシステムにインストールされている必要がある

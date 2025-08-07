@@ -296,8 +296,8 @@ bool parseArguments(int argc, char* argv[], CommandLineArgs& args)
         std::cerr << "Usage: " << argv[0] << " <input_source_file> <injection_code_file> [-o <output_file>] [-e <exclude_pattern_file>]" << std::endl;
         std::cerr << "  1st arg ... input_source_file   : C/C++ source file to analyze" << std::endl;
         std::cerr << "  2nd arg ... injection_code_file : File containing code to inject at function starts" << std::endl;
-        std::cerr << "  -o output_file: Output file (if not specified, writes to stdout)" << std::endl;
-        std::cerr << "  -e exclude_pattern_file: File containing regex patterns for functions to exclude (one per line)" << std::endl;
+        std::cerr << "  -o output_file          : Output file (if not specified, writes to stdout)" << std::endl;
+        std::cerr << "  -e exclude_pattern_file : File containing regex patterns for functions to exclude (one per line)" << std::endl;
         return false;
     }
     
