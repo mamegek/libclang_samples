@@ -1,3 +1,11 @@
+/**
+ * Function Head Injector - A tool using libclang to inject code at the beginning of C/C++ functions
+ * 
+ * This tool parses the specified source file, finds all function definitions,
+ * and inserts specified code at the beginning of each function body (right after the opening brace '{').
+ * Main use cases: Automatic insertion of debug code, trace processing, logging, etc.
+ */
+
 #include <clang-c/Index.h>
 #include <iostream>
 #include <fstream>
@@ -6,26 +14,38 @@
 #include <vector>
 #include <algorithm>
 
+/**
+ * Structure to manage command line arguments
+ */
 struct CommandLineArgs {
-    std::string inputFile;
-    std::string injectionFile;
-    std::string outputFile;
+    std::string inputFile;      // Input C/C++ source file
+    std::string injectionFile;   // File containing code to inject
+    std::string outputFile;      // Output file (default is stdout)
 };
 
+/**
+ * Structure to hold function location information and name
+ */
 struct FunctionLocation {
-    unsigned int startLine;
-    unsigned int startColumn;
-    unsigned int endLine;
-    unsigned int endColumn;
-    std::string functionName;
-    unsigned int bodyStartOffset;
+    unsigned int startLine;      // Function definition start line
+    unsigned int startColumn;    // Function definition start column
+    unsigned int endLine;        // Function definition end line
+    unsigned int endColumn;      // Function definition end column
+    std::string functionName;    // Function name
+    unsigned int bodyStartOffset; // Function body start position (byte offset from file beginning)
 };
 
-std::vector<FunctionLocation> functionLocations;
-std::string sourceContent;
-std::string injectionCode;
-CXFile inputFile = nullptr;
+// Global variables (for access from libclang callback functions)
+std::vector<FunctionLocation> functionLocations;  // Location information of all found functions
+std::string sourceContent;                        // Input source file content
+std::string injectionCode;                        // Code to inject
+CXFile inputFile = nullptr;                       // File to process (libclang file handle)
 
+/**
+ * Read file contents and return as string
+ * @param filename Path to the file to read
+ * @return File contents (empty string on read failure)
+ */
 std::string readFile(const std::string& filename) {
     std::ifstream file(filename);
     if (!file.is_open()) {
@@ -33,10 +53,16 @@ std::string readFile(const std::string& filename) {
         return "";
     }
     std::stringstream buffer;
-    buffer << file.rdbuf();
+    buffer << file.rdbuf();  // Read entire file into buffer
     return buffer.str();
 }
 
+/**
+ * Write string to file
+ * @param filename Path to the output file
+ * @param content Content to write
+ * @return true on success, false on failure
+ */
 bool writeFile(const std::string& filename, const std::string& content) {
     std::ofstream file(filename);
     if (!file.is_open()) {
@@ -47,13 +73,22 @@ bool writeFile(const std::string& filename, const std::string& content) {
     return true;
 }
 
+/**
+ * Calculate byte offset from file beginning using line and column numbers
+ * @param content File content
+ * @param line Line number (1-based)
+ * @param column Column number (1-based)
+ * @return Byte offset from file beginning
+ */
 unsigned int getOffsetFromPosition(const std::string& content, unsigned int line, unsigned int column) {
     unsigned int currentLine = 1;
     unsigned int offset = 0;
     
+    // Count newlines while advancing to the specified line
     for (size_t i = 0; i < content.length(); ++i) {
         if (currentLine == line) {
-            return offset + column - 1;
+            // Once we reach the target line, add the column position and return
+            return offset + column - 1;  // Subtract 1 as column is 1-based
         }
         if (content[i] == '\n') {
             currentLine++;
@@ -63,11 +98,17 @@ unsigned int getOffsetFromPosition(const std::string& content, unsigned int line
     return offset;
 }
 
+/**
+ * Find the start position of function body (right after the opening brace '{')
+ * @param cursor Function cursor (libclang AST element)
+ * @param content Source file content
+ * @return Offset of function body start position (std::string::npos if not found)
+ */
 unsigned int findFunctionBodyStart(CXCursor cursor, const std::string& content) {
-    // Get the function body cursor
+    // Initialize cursor representing function body (CompoundStatement)
     CXCursor bodyStmt = clang_getNullCursor();
     
-    // Visit children to find the compound statement (function body)
+    // Helper structure to find function body
     struct BodyFinder {
         CXCursor* result;
         bool found;
@@ -75,9 +116,11 @@ unsigned int findFunctionBodyStart(CXCursor cursor, const std::string& content) 
     
     BodyFinder finder = { &bodyStmt, false };
     
+    // Visit function's child nodes to find CompoundStatement (function body)
     clang_visitChildren(cursor, 
         [](CXCursor c, CXCursor parent, CXClientData data) -> CXChildVisitResult {
             BodyFinder* finder = static_cast<BodyFinder*>(data);
+            // Record CompoundStatement when found and stop searching
             if (!finder->found && clang_getCursorKind(c) == CXCursor_CompoundStmt) {
                 *(finder->result) = c;
                 finder->found = true;
@@ -88,7 +131,7 @@ unsigned int findFunctionBodyStart(CXCursor cursor, const std::string& content) 
         &finder);
     
     if (finder.found && !clang_Cursor_isNull(bodyStmt)) {
-        // Get the location of the compound statement
+        // Get CompoundStatement location information
         CXSourceRange range = clang_getCursorExtent(bodyStmt);
         CXSourceLocation startLoc = clang_getRangeStart(range);
         
@@ -96,23 +139,31 @@ unsigned int findFunctionBodyStart(CXCursor cursor, const std::string& content) 
         unsigned int line, column;
         clang_getSpellingLocation(startLoc, &file, &line, &column, nullptr);
         
-        // Find the opening brace of the compound statement
+        // Calculate offset in file from line and column
         unsigned int offset = getOffsetFromPosition(content, line, column);
         
-        // The cursor points to the compound statement, find the '{'
+        // Find opening brace '{' from CompoundStatement position
         for (size_t i = offset; i < content.length(); ++i) {
             if (content[i] == '{') {
-                return i + 1; // Return position after '{'
+                return i + 1; // Return position right after '{'
             }
         }
     }
     
-    return std::string::npos;
+    return std::string::npos;  // If not found
 }
 
+/**
+ * Callback function to visit libclang AST and find function definitions
+ * @param cursor Currently visiting AST node
+ * @param parent Parent node
+ * @param clientData User data (unused in this case)
+ * @return Instruction whether to continue visiting child nodes
+ */
 CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor parent, CXClientData clientData) {
     CXCursorKind kind = clang_getCursorKind(cursor);
     
+    // Process only function declarations or C++ methods
     if (kind == CXCursor_FunctionDecl || kind == CXCursor_CXXMethod) {
         CXString functionName = clang_getCursorSpelling(cursor);
         CXSourceRange range = clang_getCursorExtent(cursor);
@@ -126,12 +177,14 @@ CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor parent, CXClientDat
         clang_getSpellingLocation(startLoc, &file, &startLine, &startColumn, nullptr);
         clang_getSpellingLocation(endLoc, &file, &endLine, &endColumn, nullptr);
         
-        // Check if the function is defined in the input file
+        // Process only functions defined in the target input file
+        // (Exclude functions from other files like headers)
         if (!file || !clang_File_isEqual(file, inputFile)) {
             clang_disposeString(functionName);
             return CXChildVisit_Continue;
         }
         
+        // Process only function definitions (implementations, not declarations)
         if (clang_isCursorDefinition(cursor)) {
             FunctionLocation func;
             func.startLine = startLine;
@@ -140,12 +193,14 @@ CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor parent, CXClientDat
             func.endColumn = endColumn;
             func.functionName = clang_getCString(functionName);
             
+            // Find the start position of function body
             unsigned int bodyStartOffset = findFunctionBodyStart(cursor, sourceContent);
             
             if (bodyStartOffset != std::string::npos) {
                 func.bodyStartOffset = bodyStartOffset;
-                functionLocations.push_back(func);
+                functionLocations.push_back(func);  // Add found function to list
                 
+                // Debug output: Display information about found function
                 std::cerr << "Found function: " << func.functionName 
                           << " at line " << startLine << ":" << startColumn
                           << " to line " << endLine << ":" << endColumn << std::endl;
@@ -155,19 +210,30 @@ CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor parent, CXClientDat
         clang_disposeString(functionName);
     }
     
-    return CXChildVisit_Recurse;
+    return CXChildVisit_Recurse;  // Visit child nodes recursively
 }
 
+/**
+ * Insert specified code at the beginning of all found functions
+ * @param content Original source code
+ * @param locations List of function location information
+ * @param codeToInject Code to inject
+ * @return Source code after code injection
+ */
 std::string injectCode(const std::string& content, const std::vector<FunctionLocation>& locations, const std::string& codeToInject) {
     std::string result = content;
     
+    // Sort location information in descending order (from back)
+    // Reason: Inserting from front would shift subsequent positions
     std::vector<FunctionLocation> sortedLocations = locations;
     std::sort(sortedLocations.begin(), sortedLocations.end(), 
               [](const FunctionLocation& a, const FunctionLocation& b) {
-                  return a.bodyStartOffset > b.bodyStartOffset;  // Sort in descending order
+                  return a.bodyStartOffset > b.bodyStartOffset;  // Descending sort
               });
     
+    // Insert code into each function
     for (const auto& func : sortedLocations) {
+        // Format code to inject (add newline and indentation)
         std::string injection = "\n    " + codeToInject;
         if (!codeToInject.empty() && codeToInject.back() != '\n') {
             injection += "\n";
@@ -179,8 +245,15 @@ std::string injectCode(const std::string& content, const std::vector<FunctionLoc
     return result;
 }
 
+/**
+ * Parse command line arguments
+ * @param argc Number of arguments
+ * @param argv Array of arguments
+ * @param args Structure to store parsing results
+ * @return true on successful parsing, false on failure
+ */
 bool parseArguments(int argc, char* argv[], CommandLineArgs& args) {
-    if (argc < 3 || argc > 5) {
+    if (argc < 3) {
         std::cerr << "Usage: " << argv[0] << " <input_source_file> <injection_code_file> [-o <output_file>]" << std::endl;
         std::cerr << "  input_source_file: C/C++ source file to analyze" << std::endl;
         std::cerr << "  injection_code_file: File containing code to inject at function starts" << std::endl;
@@ -188,23 +261,53 @@ bool parseArguments(int argc, char* argv[], CommandLineArgs& args) {
         return false;
     }
     
-    args.inputFile = argv[1];
-    args.injectionFile = argv[2];
-    args.outputFile = "/dev/stdout"; // Default to stdout
+    args.outputFile = "/dev/stdout"; // Default is stdout
     
-    // Parse optional -o flag
-    for (int i = 3; i < argc; i++) {
-        if (std::string(argv[i]) == "-o" && i + 1 < argc) {
-            args.outputFile = argv[i + 1];
-            i++; // Skip the next argument as it's the filename
+    std::vector<std::string> positionalArgs;  // Store positional arguments
+    
+    // Parse command line arguments
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+        
+        if (arg == "-o") {
+            // Output file option
+            if (i + 1 >= argc) {
+                std::cerr << "Error: -o requires an argument" << std::endl;
+                return false;
+            }
+            args.outputFile = argv[++i];
+        } else if (arg[0] == '-') {
+            // Unknown option
+            std::cerr << "Error: Unknown option: " << arg << std::endl;
+            return false;
+        } else {
+            // Record as positional argument
+            positionalArgs.push_back(arg);
         }
     }
+    
+    // Check number of positional arguments (need 2: input file and injection code file)
+    if (positionalArgs.size() != 2) {
+        std::cerr << "Error: Expected exactly 2 positional arguments (input_source_file and injection_code_file)" << std::endl;
+        std::cerr << "Got " << positionalArgs.size() << " argument(s)" << std::endl;
+        return false;
+    }
+    
+    args.inputFile = positionalArgs[0];      // First argument: input source file
+    args.injectionFile = positionalArgs[1];  // Second argument: injection code file
     
     return true;
 }
 
 
+/**
+ * Parse source file using libclang and build AST
+ * @param index libclang index
+ * @param inputFile Path to source file to parse
+ * @return Translation unit (AST), nullptr on failure
+ */
 CXTranslationUnit parseSourceFile(CXIndex index, const std::string& inputFile) {
+    // Compiler options (include paths, etc.)
     const char* args[] = {
         "-I/usr/include",
         "-I/usr/local/include"
@@ -212,12 +315,13 @@ CXTranslationUnit parseSourceFile(CXIndex index, const std::string& inputFile) {
     
     int argCount = sizeof(args) / sizeof(args[0]);
     
+    // Parse source file and generate AST
     CXTranslationUnit translationUnit = clang_parseTranslationUnit(
         index,
         inputFile.c_str(),
-        args, argCount,
-        nullptr, 0,
-        CXTranslationUnit_None
+        args, argCount,      // Compiler options
+        nullptr, 0,          // No unsaved files
+        CXTranslationUnit_None  // No special flags
     );
     
     if (translationUnit == nullptr) {
@@ -227,24 +331,35 @@ CXTranslationUnit parseSourceFile(CXIndex index, const std::string& inputFile) {
     return translationUnit;
 }
 
+/**
+ * Write processing result to output file
+ * @param outputFile Output file path
+ * @param sourceContent Original source code
+ * @param functionLocations Location information of found functions
+ * @param injectionCode Code to inject
+ * @return true on successful processing, false on failure
+ */
 bool processAndWriteOutput(const std::string& outputFile, 
                            const std::string& sourceContent,
                            const std::vector<FunctionLocation>& functionLocations,
                            const std::string& injectionCode) {
     if (functionLocations.empty()) {
         std::cerr << "No functions found in the source file." << std::endl;
-        return true;
+        return true;  // Not an error even if no functions found
     }
     
     std::cerr << "\nTotal functions found: " << functionLocations.size() << std::endl;
     
+    // Insert code
     std::string modifiedContent = injectCode(sourceContent, functionLocations, injectionCode);
     
+    // Write to file
     if (!writeFile(outputFile, modifiedContent)) {
         std::cerr << "Error: Failed to write output file: " << outputFile << std::endl;
         return false;
     }
     
+    // Display output destination if not stdout
     if (outputFile != "/dev/stdout") {
         std::cerr << "\nModified source written to: " << outputFile << std::endl;
     }
@@ -252,35 +367,47 @@ bool processAndWriteOutput(const std::string& outputFile,
     return true;
 }
 
+/**
+ * Main function: Program entry point
+ */
 int main(int argc, char* argv[]) {
+    // Parse command line arguments
     CommandLineArgs args;
     if (!parseArguments(argc, argv, args)) {
         return 1;
     }
     
+    // Read input source file
     sourceContent = readFile(args.inputFile);
     if (sourceContent.empty()) {
         std::cerr << "Error: Could not read input file: " << args.inputFile << std::endl;
         return 1;
     }
     
+    // Read code to inject
     injectionCode = readFile(args.injectionFile);
     if (injectionCode.empty()) {
         std::cerr << "Warning: Injection code file is empty or could not be read: " << args.injectionFile << std::endl;
     }
     
+    // Remove trailing newlines from injection code (for cleaner formatting)
     while (!injectionCode.empty() && injectionCode.back() == '\n') {
         injectionCode.pop_back();
     }
     
+    // Create libclang index
+    // First argument: Don't exclude diagnostics (0)
+    // Second argument: Don't display diagnostic options (0)
     CXIndex index = clang_createIndex(0, 0);
     
+    // Parse source file and build AST
     CXTranslationUnit translationUnit = parseSourceFile(index, args.inputFile);
     if (translationUnit == nullptr) {
         clang_disposeIndex(index);
         return 1;
     }
     
+    // Get handle for input file (to identify file during function visiting)
     ::inputFile = clang_getFile(translationUnit, args.inputFile.c_str());
     if (!::inputFile) {
         std::cerr << "Error: Unable to get CXFile for input file: " << args.inputFile << std::endl;
@@ -289,11 +416,14 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
+    // Visit all nodes from AST root to find functions
     CXCursor rootCursor = clang_getTranslationUnitCursor(translationUnit);
     clang_visitChildren(rootCursor, functionVisitor, nullptr);
     
+    // Process results and output to file
     bool success = processAndWriteOutput(args.outputFile, sourceContent, functionLocations, injectionCode);
     
+    // Clean up resources
     clang_disposeTranslationUnit(translationUnit);
     clang_disposeIndex(index);
     
