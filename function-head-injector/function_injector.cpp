@@ -35,10 +35,14 @@ struct FunctionLocation {
     unsigned int bodyStartOffset; // Function body start position (byte offset from file beginning)
 };
 
-// Global variables (for access from libclang callback functions)
-std::vector<FunctionLocation> functionLocations;  // Location information of all found functions
-std::string sourceContent;                        // Input source file content
-CXFile inputFile = nullptr;                       // File to process (libclang file handle)
+/**
+ * Structure to hold data passed to libclang visitor callbacks
+ */
+struct VisitorClientData {
+    std::vector<FunctionLocation>* functionLocations;  // Location information of all found functions
+    std::string* sourceContent;                        // Input source file content
+    CXFile inputFile;                                  // File to process (libclang file handle)
+};
 
 /**
  * Read file contents and return as string
@@ -113,13 +117,16 @@ size_t findFunctionBodyStart(CXCursor cursor, const std::string& content) {
         clang_getSpellingLocation(startLoc
                     , nullptr /*&file*/, nullptr /*&line*/, nullptr /*&column*/, &offset);
         
+#if 0
         // Find opening brace '{' from CompoundStatement position
         for (size_t i = offset; i < content.length(); ++i) {
-            std::cout << "[debug] ... " << content[i] << std::endl;
             if (content[i] == '{') {
                 return i + 1; // Return position right after '{'
             }
         }
+#else
+        return offset + 1; // Return position right after '{'
+#endif
     }
     
     return std::string::npos;  // If not found
@@ -129,10 +136,11 @@ size_t findFunctionBodyStart(CXCursor cursor, const std::string& content) {
  * Callback function to visit libclang AST and find function definitions
  * @param cursor Currently visiting AST node
  * @param parent Parent node  (unused in this case)
- * @param clientData User data (unused in this case)
+ * @param clientData User data containing visitor context
  * @return Instruction whether to continue visiting child nodes
  */
-CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor /*parent*/, CXClientData /*clientData*/) {
+CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor /*parent*/, CXClientData clientData) {
+    VisitorClientData* visitorData = static_cast<VisitorClientData*>(clientData);
     CXCursorKind kind = clang_getCursorKind(cursor);
     
     // Process only function declarations or C++ methods
@@ -149,7 +157,7 @@ CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor /*parent*/, CXClien
         
         // Process only functions defined in the target input file
         // (Exclude functions from other files like headers, e.g.  __bswap_16)
-        if (!file || !clang_File_isEqual(file, inputFile)) {
+        if (!file || !clang_File_isEqual(file, visitorData->inputFile)) {
             clang_disposeString(functionName);
             return CXChildVisit_Continue;
         }
@@ -164,11 +172,11 @@ CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor /*parent*/, CXClien
             func.functionName = clang_getCString(functionName);
             
             // Find the start position of function body
-            size_t bodyStartOffset = findFunctionBodyStart(cursor, sourceContent);
+            size_t bodyStartOffset = findFunctionBodyStart(cursor, *(visitorData->sourceContent));
             
             if (bodyStartOffset != std::string::npos) {
                 func.bodyStartOffset = bodyStartOffset;
-                functionLocations.push_back(func);  // Add found function to list
+                visitorData->functionLocations->push_back(func);  // Add found function to list
                 
                 // Debug output: Display information about found function
                 std::cerr << "Found function: " << func.functionName 
@@ -348,7 +356,7 @@ int main(int argc, char* argv[]) {
     }
     
     // Read input source file
-    sourceContent = readFile(args.inputFile);
+    std::string sourceContent = readFile(args.inputFile);
     if (sourceContent.empty()) {
         std::cerr << "Error: Could not read input file: " << args.inputFile << std::endl;
         return 1;
@@ -379,17 +387,25 @@ int main(int argc, char* argv[]) {
     }
     
     // Get handle for input file (to identify file during function visiting)
-    ::inputFile = clang_getFile(translationUnit, args.inputFile.c_str());
-    if (!::inputFile) {
+    CXFile inputFile = clang_getFile(translationUnit, args.inputFile.c_str());
+    if (!inputFile) {
         std::cerr << "Error: Unable to get CXFile for input file: " << args.inputFile << std::endl;
         clang_disposeTranslationUnit(translationUnit);
         clang_disposeIndex(index);
         return 1;
     }
     
+    // Prepare client data for visitor
+    std::vector<FunctionLocation> functionLocations;
+    VisitorClientData visitorData = {
+        &functionLocations,
+        &sourceContent,
+        inputFile
+    };
+    
     // Visit all nodes from AST root to find functions
     CXCursor rootCursor = clang_getTranslationUnitCursor(translationUnit);
-    clang_visitChildren(rootCursor, functionVisitor, nullptr);
+    clang_visitChildren(rootCursor, functionVisitor, &visitorData);
     
     // Process results and output to file
     bool success = processAndWriteOutput(args.outputFile, sourceContent, functionLocations, injectionCode);
