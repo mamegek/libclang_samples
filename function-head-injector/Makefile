@@ -34,12 +34,6 @@ $(BIN_DIR):
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
 
-# 実行
-run: $(TARGET)
-	./$(TARGET) \
-		test_input/test_simple.c\
-		test_input/injection_code.txt
-
 # クリーンアップ
 clean:
 	rm -rf $(OBJ_DIR) $(BIN_DIR)
