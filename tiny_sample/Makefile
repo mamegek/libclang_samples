@@ -9,7 +9,7 @@ LDFLAGS += $(shell $(LLVM_CONFIG) --ldflags --libs --system-libs)
 
 # ディレクトリ構成
 BIN_DIR = bin
-OBJ_DIR = $(BIN_DIR)
+OBJ_DIR = obj
 
 # ターゲットとソース
 TARGET = $(BIN_DIR)/libclang_sample
@@ -36,7 +36,7 @@ $(OBJ_DIR):
 
 # 実行
 run: $(TARGET)
-	./$(TARGET) input_c_file.c
+	@./$(TARGET) input_c_file.c
 
 # クリーンアップ
 clean:
@@ -46,6 +46,6 @@ clean:
 -include $(OBJECTS:.o=.d)
 
 $(OBJ_DIR)/%.d: %.cpp | $(OBJ_DIR)
-	@$(CXX) $(CXXFLAGS) -MM -MT $(OBJ_DIR)/$*.o $< > $@
+	$(CXX) $(CXXFLAGS) -MM -MT $(OBJ_DIR)/$*.o $< > $@
 
 .PHONY: all clean run
