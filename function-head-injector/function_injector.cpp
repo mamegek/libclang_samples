@@ -38,7 +38,6 @@ struct FunctionLocation {
 // Global variables (for access from libclang callback functions)
 std::vector<FunctionLocation> functionLocations;  // Location information of all found functions
 std::string sourceContent;                        // Input source file content
-std::string injectionCode;                        // Code to inject
 CXFile inputFile = nullptr;                       // File to process (libclang file handle)
 
 /**
@@ -74,37 +73,12 @@ bool writeFile(const std::string& filename, const std::string& content) {
 }
 
 /**
- * Calculate byte offset from file beginning using line and column numbers
- * @param content File content
- * @param line Line number (1-based)
- * @param column Column number (1-based)
- * @return Byte offset from file beginning
- */
-unsigned int getOffsetFromPosition(const std::string& content, unsigned int line, unsigned int column) {
-    unsigned int currentLine = 1;
-    unsigned int offset = 0;
-    
-    // Count newlines while advancing to the specified line
-    for (size_t i = 0; i < content.length(); ++i) {
-        if (currentLine == line) {
-            // Once we reach the target line, add the column position and return
-            return offset + column - 1;  // Subtract 1 as column is 1-based
-        }
-        if (content[i] == '\n') {
-            currentLine++;
-        }
-        offset++;
-    }
-    return offset;
-}
-
-/**
  * Find the start position of function body (right after the opening brace '{')
  * @param cursor Function cursor (libclang AST element)
  * @param content Source file content
  * @return Offset of function body start position (std::string::npos if not found)
  */
-unsigned int findFunctionBodyStart(CXCursor cursor, const std::string& content) {
+size_t findFunctionBodyStart(CXCursor cursor, const std::string& content) {
     // Initialize cursor representing function body (CompoundStatement)
     CXCursor bodyStmt = clang_getNullCursor();
     
@@ -118,7 +92,7 @@ unsigned int findFunctionBodyStart(CXCursor cursor, const std::string& content) 
     
     // Visit function's child nodes to find CompoundStatement (function body)
     clang_visitChildren(cursor, 
-        [](CXCursor c, CXCursor parent, CXClientData data) -> CXChildVisitResult {
+        [](CXCursor c, CXCursor /*parent*/, CXClientData data) -> CXChildVisitResult {
             BodyFinder* finder = static_cast<BodyFinder*>(data);
             // Record CompoundStatement when found and stop searching
             if (!finder->found && clang_getCursorKind(c) == CXCursor_CompoundStmt) {
@@ -135,15 +109,13 @@ unsigned int findFunctionBodyStart(CXCursor cursor, const std::string& content) 
         CXSourceRange range = clang_getCursorExtent(bodyStmt);
         CXSourceLocation startLoc = clang_getRangeStart(range);
         
-        CXFile file;
-        unsigned int line, column;
-        clang_getSpellingLocation(startLoc, &file, &line, &column, nullptr);
-        
-        // Calculate offset in file from line and column
-        unsigned int offset = getOffsetFromPosition(content, line, column);
+        unsigned int offset;
+        clang_getSpellingLocation(startLoc
+                    , nullptr /*&file*/, nullptr /*&line*/, nullptr /*&column*/, &offset);
         
         // Find opening brace '{' from CompoundStatement position
         for (size_t i = offset; i < content.length(); ++i) {
+            std::cout << "[debug] ... " << content[i] << std::endl;
             if (content[i] == '{') {
                 return i + 1; // Return position right after '{'
             }
@@ -156,11 +128,11 @@ unsigned int findFunctionBodyStart(CXCursor cursor, const std::string& content) 
 /**
  * Callback function to visit libclang AST and find function definitions
  * @param cursor Currently visiting AST node
- * @param parent Parent node
+ * @param parent Parent node  (unused in this case)
  * @param clientData User data (unused in this case)
  * @return Instruction whether to continue visiting child nodes
  */
-CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor parent, CXClientData clientData) {
+CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor /*parent*/, CXClientData /*clientData*/) {
     CXCursorKind kind = clang_getCursorKind(cursor);
     
     // Process only function declarations or C++ methods
@@ -170,15 +142,13 @@ CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor parent, CXClientDat
         CXSourceLocation startLoc = clang_getRangeStart(range);
         CXSourceLocation endLoc = clang_getRangeEnd(range);
 
-        CXCursor definition = clang_getCursorDefinition(cursor);
-
         CXFile file;
         unsigned int startLine, startColumn, endLine, endColumn;
         clang_getSpellingLocation(startLoc, &file, &startLine, &startColumn, nullptr);
         clang_getSpellingLocation(endLoc, &file, &endLine, &endColumn, nullptr);
         
         // Process only functions defined in the target input file
-        // (Exclude functions from other files like headers)
+        // (Exclude functions from other files like headers, e.g.  __bswap_16)
         if (!file || !clang_File_isEqual(file, inputFile)) {
             clang_disposeString(functionName);
             return CXChildVisit_Continue;
@@ -194,7 +164,7 @@ CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor parent, CXClientDat
             func.functionName = clang_getCString(functionName);
             
             // Find the start position of function body
-            unsigned int bodyStartOffset = findFunctionBodyStart(cursor, sourceContent);
+            size_t bodyStartOffset = findFunctionBodyStart(cursor, sourceContent);
             
             if (bodyStartOffset != std::string::npos) {
                 func.bodyStartOffset = bodyStartOffset;
@@ -385,6 +355,7 @@ int main(int argc, char* argv[]) {
     }
     
     // Read code to inject
+    std::string injectionCode;  // Code to inject
     injectionCode = readFile(args.injectionFile);
     if (injectionCode.empty()) {
         std::cerr << "Warning: Injection code file is empty or could not be read: " << args.injectionFile << std::endl;
@@ -396,9 +367,9 @@ int main(int argc, char* argv[]) {
     }
     
     // Create libclang index
-    // First argument: Don't exclude diagnostics (0)
-    // Second argument: Don't display diagnostic options (0)
-    CXIndex index = clang_createIndex(0, 0);
+    // First argument: Exclude declarations from PCH (PreCompiledHeader)
+    // Second argument: Don't display diagnostic (0)
+    CXIndex index = clang_createIndex(1, 0);
     
     // Parse source file and build AST
     CXTranslationUnit translationUnit = parseSourceFile(index, args.inputFile);
