@@ -1,11 +1,11 @@
 # Function Head Injector
 
-libclangを使用してC/C++ソースコードの各関数の先頭に任意のコードを挿入するプログラムです。
+libclangを使用してC/C++ソースコードの各関数の先頭に任意のコードを挿入するプログラム
 
 ## 機能
 
 - C/C++ソースファイルの解析
-- 各関数の開始位置（開き中括弧の直後）を特定
+- 各関数の定義を特定
 - 指定されたコードを各関数の先頭に自動挿入
 - 新しいソースファイルとして出力
 
@@ -18,51 +18,30 @@ make
 ## 使用方法
 
 ```bash
-./bin/function_injector <入力ソースファイル> <挿入コードファイル> <出力ファイル>
+Usage: ./bin/function_injector <input_source_file> <injection_code_file> [-o <output_file>] [-e <exclude_pattern_file>]
+  1st arg ... input_source_file   : C/C++ source file to analyze
+  2nd arg ... injection_code_file : File containing code to inject at function starts
+  -o output_file: Output file (if not specified, writes to stdout)
+  -e exclude_pattern_file: File containing regex patterns for functions to exclude (one per line)
 ```
 
-### パラメータ
-- `入力ソースファイル`: 解析対象のC/C++ソースファイル
-- `挿入コードファイル`: 各関数の先頭に挿入するコードが記載されたテキストファイル
-- `出力ファイル`: コードが挿入された新しいソースファイルの出力先
 
 ## 使用例
 
 ### 例1: デバッグログの挿入
 
-1. 挿入するコードを準備（`debug_log.txt`）:
+1. 挿入するコードを準備（`debug_printf.txt`）:
 ```c
 printf(">> Function entry: %s:%d\n", __FILE__, __LINE__);
 ```
 
 2. プログラムを実行:
 ```bash
-./bin/function_injector my_program.c debug_log.txt my_program_debug.c
+./bin/function_injector my_program.c debug_log.txt
 ```
 
-### 例2: パフォーマンス計測コードの挿入
+これにより、`my_program.c`の各関数に`debug_printf.txt`の内容が挿入されたプログラムがコンソールに出力されます。　
 
-1. 挿入するコードを準備（`perf_measure.txt`）:
-```c
-clock_t start_time = clock();
-```
-
-2. プログラムを実行:
-```bash
-./bin/function_injector application.cpp perf_measure.txt application_perf.cpp
-```
-
-### 例3: カスタムトレーシング
-
-1. 挿入するコードを準備（`trace.txt`）:
-```c
-trace_enter(__FUNCTION__);
-```
-
-2. プログラムを実行:
-```bash
-./bin/function_injector source.c trace.txt source_traced.c
-```
 
 ## テストの実行
 
@@ -70,8 +49,6 @@ trace_enter(__FUNCTION__);
 ```bash
 make run
 ```
-
-これにより、`test_input.c`に`injection_code.txt`の内容が挿入され、`test_output.c`が生成されます。
 
 ## クリーンアップ
 
