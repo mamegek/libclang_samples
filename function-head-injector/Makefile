@@ -36,7 +36,9 @@ $(OBJ_DIR):
 
 # 実行
 run: $(TARGET)
-	./$(TARGET) test_input.c injection_code.txt -o test_output.c
+	./$(TARGET) \
+		test_input/test_simple.c\
+		test_input/injection_code.txt
 
 # クリーンアップ
 clean:

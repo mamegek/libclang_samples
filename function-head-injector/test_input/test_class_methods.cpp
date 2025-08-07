@@ -7,15 +7,11 @@ private:
     std::string name;
 
 public:
-    // コンストラクタ（実装が一行だけ）
+    // コンストラクタ
     Sample() : value(0), name("default") {}
-    
-    // 実装が存在しない（{}だけ）
-    void doNothing() {}
     
     // 実装が一行だけのメソッド
     int getValue() const { return value; }
-    
     void setValue(int v) { value = v; }
     
     std::string getName() const { return name; }
@@ -25,11 +21,10 @@ public:
     // 実装が存在しない（{}だけ）
     void emptyMethod() {}
     
-    // 実装が一行だけ
-    void printInfo() const { std::cout << "Name: " << name << ", Value: " << value << std::endl; }
-    
-    // 実装が存在しない（{}だけ）
-    void futureFeature() {}
+    void printInfo() const {
+        std::cout << "Name: " << name << std::endl; 
+        std::cout << "Value: " << value << std::endl; 
+    }
 };
 
 int main() {
@@ -41,7 +36,6 @@ int main() {
     obj.printInfo();
     
     // 空のメソッドも呼び出し可能
-    obj.doNothing();
     obj.emptyMethod();
     
     return 0;

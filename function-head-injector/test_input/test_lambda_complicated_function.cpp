@@ -12,8 +12,6 @@ void process_with_default(
     int value,
     std::function<int(int)> processor = [](int x) { return x * 2; }
 ) {
-    std::cout << "INJECTED\!";
-
     std::cout << "Processed: " << processor(value) << std::endl;
 }
 
@@ -32,8 +30,6 @@ void execute_with_retry(
 void process_numbers(
     std::initializer_list<int> numbers = {1, 2, 3, 4, 5}
 ) {
-    std::cout << "INJECTED\!";
-
     std::cout << "Processing numbers: ";
     for (int n : numbers) {
         std::cout << n << " ";
@@ -55,8 +51,6 @@ void setup_system(
         .callback = []() { std::cout << "Default callback\n"; }
     }
 ) {
-    std::cout << "INJECTED\!";
-
     std::cout << "Setup with timeout: " << config.timeout 
               << ", name: " << config.name << std::endl;
     config.callback();
@@ -68,8 +62,6 @@ void transform_and_filter(
     std::function<int(int)> transformer = [](int x) { return x * x; },
     std::function<bool(int)> filter = [](int x) { return x > 10; }
 ) {
-    std::cout << "INJECTED\!";
-
     std::transform(data.begin(), data.end(), data.begin(), transformer);
     data.erase(
         std::remove_if(data.begin(), data.end(), 
@@ -85,8 +77,6 @@ auto create_nested_processor(
         return inner(x) * 2;
     }
 ) {
-    std::cout << "INJECTED\!";
-
     return [outer](int value) {
         auto result = outer(value);
         std::cout << "Nested processing result: " << result << std::endl;
@@ -102,8 +92,6 @@ void process_with_map(
         {"pause", []() { std::cout << "Pausing...\n"; }}
     }
 ) {
-    std::cout << "INJECTED\!";
-
     for (const auto& [name, action] : actions) {
         std::cout << "Executing " << name << ": ";
         action();
@@ -124,16 +112,12 @@ void execute_all(Funcs... funcs) {
 void create_with_local_class(
     std::function<void()> creator = []() {
         struct LocalHelper {
-            void help() {
-    std::cout << "INJECTED\!";
- std::cout << "Local class helper\n"; }
+            void help() { std::cout << "Local class helper\n"; }
         };
         LocalHelper helper;
         helper.help();
     }
 ) {
-    std::cout << "INJECTED\!";
-
     creator();
 }
 
@@ -143,8 +127,6 @@ auto create_pipeline(
     std::function<int(int)> stage2 = [](int x) { return x * 2; },
     std::function<int(int)> stage3 = [](int x) { return x - 3; }
 ) {
-    std::cout << "INJECTED\!";
-
     return [=](int input) {
         auto temp1 = stage1(input);
         auto temp2 = stage2(temp1);
@@ -162,8 +144,6 @@ void async_execute(
         std::cout << "Async task completed\n";
     }
 ) {
-    std::cout << "INJECTED\!";
-
     std::thread t(task);
     t.join();
 }
@@ -174,8 +154,6 @@ auto make_validator(
         return x > 0 && x < 100; 
     }
 ) -> std::function<std::string(int)> {
-    std::cout << "INJECTED\!";
-
     return [condition](int value) -> std::string {
         if (condition(value)) {
             return "Valid: " + std::to_string(value);
@@ -186,8 +164,6 @@ auto make_validator(
 }
 
 int main() {
-    std::cout << "INJECTED\!";
-
     std::cout << "=== Function definitions with nested braces ===\n\n";
     
     // 1. デフォルトラムダ
@@ -195,7 +171,6 @@ int main() {
     process_with_default(5, [](int x) { return x * x; });
     
     // 2. テンプレート関数
-    execute_with_retry(3);
     execute_with_retry(2, []() { std::cout << "Custom action\n"; });
     
     // 3. 初期化リスト

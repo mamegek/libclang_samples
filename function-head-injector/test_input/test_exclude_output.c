@@ -46,8 +46,6 @@ void swap(int* a, int* b) {
 }
 
 int main() {
-    printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
-
     printf("Testing functions\n");
     
     int result = add(5, 3);
