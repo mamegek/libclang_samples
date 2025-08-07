@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <regex>
 
 /**
  * Structure to manage command line arguments
@@ -21,6 +22,7 @@ struct CommandLineArgs {
     std::string inputFile;      // Input C/C++ source file
     std::string injectionFile;   // File containing code to inject
     std::string outputFile;      // Output file (default is stdout)
+    std::string excludeFile;     // File containing regex patterns for functions to exclude
 };
 
 /**
@@ -41,6 +43,7 @@ struct FunctionLocation {
 struct VisitorClientData {
     std::vector<FunctionLocation>* functionLocations;  // Location information of all found functions
     CXFile inputFile;                                  // File to process (libclang file handle)
+    std::vector<std::regex>* excludePatterns;          // Regex patterns for functions to exclude
 };
 
 /**
@@ -57,6 +60,59 @@ std::string readFile(const std::string& filename) {
     std::stringstream buffer;
     buffer << file.rdbuf();  // Read entire file into buffer
     return buffer.str();
+}
+
+/**
+ * Read regex patterns from file (one pattern per line)
+ * @param filename Path to the file containing regex patterns
+ * @return Vector of compiled regex patterns
+ */
+std::vector<std::regex> readExcludePatterns(const std::string& filename) {
+    std::vector<std::regex> patterns;
+    if (filename.empty()) {
+        return patterns; // empty vector
+    }
+    
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Warning: Cannot open exclude pattern file " << filename << std::endl;
+        return patterns;
+    }else{
+        std::cerr << "Loaded exclude patterns from " << filename << std::endl;
+    }
+    
+    std::string line;
+    int lineNum = 0;
+    while (std::getline(file, line)) {
+        lineNum++;
+        // Skip empty lines and comment lines (starting with #)
+        if (line.empty() || line[0] == '#') {
+            continue;
+        }
+        
+        // Since exceptions are disabled, we need to check regex validity differently
+        // For now, we'll just add the pattern and let std::regex handle it
+        // If the pattern is invalid, the program will terminate
+        patterns.push_back(std::regex(line));
+        std::cerr << "Added exclude pattern: " << line << std::endl;
+    }
+    
+    return patterns;
+}
+
+/**
+ * Check if function name matches any exclude pattern
+ * @param functionName Function name to check
+ * @param patterns Vector of regex patterns
+ * @return true if function should be excluded, false otherwise
+ */
+bool shouldExcludeFunction(const std::string& functionName, const std::vector<std::regex>& patterns) {
+    for (const auto& pattern : patterns) {
+        if (std::regex_match(functionName, pattern)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /**
@@ -160,6 +216,15 @@ CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor /*parent*/, CXClien
             func.endColumn = endColumn;
             func.functionName = clang_getCString(functionName);
             
+            // Check if function should be excluded
+            if (visitorData->excludePatterns && 
+                shouldExcludeFunction(func.functionName, *(visitorData->excludePatterns))) {
+                std::cerr << "Excluding function: " << func.functionName 
+                          << " (matched exclude pattern)" << std::endl;
+                clang_disposeString(functionName);
+                return CXChildVisit_Continue;
+            }
+            
             // Find the start position of function body
             size_t bodyStartOffset = findFunctionBodyStart(cursor);
             
@@ -221,14 +286,16 @@ std::string injectCode(const std::string& content, const std::vector<FunctionLoc
  */
 bool parseArguments(int argc, char* argv[], CommandLineArgs& args) {
     if (argc < 3) {
-        std::cerr << "Usage: " << argv[0] << " <input_source_file> <injection_code_file> [-o <output_file>]" << std::endl;
-        std::cerr << "  input_source_file: C/C++ source file to analyze" << std::endl;
-        std::cerr << "  injection_code_file: File containing code to inject at function starts" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <input_source_file> <injection_code_file> [-o <output_file>] [-e <exclude_pattern_file>]" << std::endl;
+        std::cerr << "  1st arg ... input_source_file   : C/C++ source file to analyze" << std::endl;
+        std::cerr << "  2nd arg ... injection_code_file : File containing code to inject at function starts" << std::endl;
         std::cerr << "  -o output_file: Output file (if not specified, writes to stdout)" << std::endl;
+        std::cerr << "  -e exclude_pattern_file: File containing regex patterns for functions to exclude (one per line)" << std::endl;
         return false;
     }
     
     args.outputFile = "/dev/stdout"; // Default is stdout
+    args.excludeFile = ""; // Default is no exclude file
     
     std::vector<std::string> positionalArgs;  // Store positional arguments
     
@@ -236,13 +303,20 @@ bool parseArguments(int argc, char* argv[], CommandLineArgs& args) {
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         
-        if (arg == "-o") {
+        if ( (arg == "-o") || (arg == "--output") ) {
             // Output file option
             if (i + 1 >= argc) {
                 std::cerr << "Error: -o requires an argument" << std::endl;
                 return false;
             }
             args.outputFile = argv[++i];
+        } else if ( (arg == "-e") || (arg == "--exclude") ) {
+            // Exclude pattern file option
+            if (i + 1 >= argc) {
+                std::cerr << "Error: -e requires an argument" << std::endl;
+                return false;
+            }
+            args.excludeFile = argv[++i];
         } else if (arg[0] == '-') {
             // Unknown option
             std::cerr << "Error: Unknown option: " << arg << std::endl;
@@ -384,11 +458,15 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
+    // Read exclude patterns from file (empty if no file specified)
+    std::vector<std::regex> excludePatterns = readExcludePatterns(args.excludeFile);
+    
     // Prepare client data for visitor
     std::vector<FunctionLocation> functionLocations;
     VisitorClientData visitorData = {
         &functionLocations,
-        inputFile
+        inputFile,
+        &excludePatterns
     };
     
     // Visit all nodes from AST root to find functions
