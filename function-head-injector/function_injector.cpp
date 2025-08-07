@@ -51,7 +51,8 @@ struct VisitorClientData {
  * @param filename Path to the file to read
  * @return File contents (empty string on read failure)
  */
-std::string readFile(const std::string& filename) {
+std::string readFile(const std::string& filename)
+{
     std::ifstream file(filename);
     if (!file.is_open()) {
         std::cerr << "Error: Cannot open file " << filename << std::endl;
@@ -67,7 +68,8 @@ std::string readFile(const std::string& filename) {
  * @param filename Path to the file containing regex patterns
  * @return Vector of compiled regex patterns
  */
-std::vector<std::regex> readExcludePatterns(const std::string& filename) {
+std::vector<std::regex> readExcludePatterns(const std::string& filename)
+{
     std::vector<std::regex> patterns;
     if (filename.empty()) {
         return patterns; // empty vector
@@ -90,11 +92,10 @@ std::vector<std::regex> readExcludePatterns(const std::string& filename) {
             continue;
         }
         
-        // Since exceptions are disabled, we need to check regex validity differently
-        // For now, we'll just add the pattern and let std::regex handle it
-        // If the pattern is invalid, the program will terminate
+        // WARNING: Invalid regex pattern will cause std::regex_error 
+        //          and terminate the program (e.g., "Aborted (core dumped)")
+        std::cerr << "\tAdding exclude regex pattern: " << line << std::endl;
         patterns.push_back(std::regex(line));
-        std::cerr << "Added exclude pattern: " << line << std::endl;
     }
     
     return patterns;
@@ -106,7 +107,8 @@ std::vector<std::regex> readExcludePatterns(const std::string& filename) {
  * @param patterns Vector of regex patterns
  * @return true if function should be excluded, false otherwise
  */
-bool shouldExcludeFunction(const std::string& functionName, const std::vector<std::regex>& patterns) {
+bool shouldExcludeFunction(const std::string& functionName, const std::vector<std::regex>& patterns)
+{
     for (const auto& pattern : patterns) {
         if (std::regex_match(functionName, pattern)) {
             return true;
@@ -121,7 +123,8 @@ bool shouldExcludeFunction(const std::string& functionName, const std::vector<st
  * @param content Content to write
  * @return true on success, false on failure
  */
-bool writeFile(const std::string& filename, const std::string& content) {
+bool writeFile(const std::string& filename, const std::string& content)
+{
     std::ofstream file(filename);
     if (!file.is_open()) {
         std::cerr << "Error: Cannot open file " << filename << " for writing" << std::endl;
@@ -136,7 +139,8 @@ bool writeFile(const std::string& filename, const std::string& content) {
  * @param cursor Function cursor (libclang AST element)
  * @return Offset of function body start position (std::string::npos if not found)
  */
-size_t findFunctionBodyStart(CXCursor cursor) {
+size_t findFunctionBodyStart(CXCursor cursor)
+{
     // Initialize cursor representing function body (CompoundStatement)
     CXCursor bodyStmt = clang_getNullCursor();
     
@@ -184,7 +188,8 @@ size_t findFunctionBodyStart(CXCursor cursor) {
  * @param clientData User data containing visitor context
  * @return Instruction whether to continue visiting child nodes
  */
-CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor /*parent*/, CXClientData clientData) {
+CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor /*parent*/, CXClientData clientData)
+{
     VisitorClientData* visitorData = static_cast<VisitorClientData*>(clientData);
     CXCursorKind kind = clang_getCursorKind(cursor);
     
@@ -252,7 +257,8 @@ CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor /*parent*/, CXClien
  * @param codeToInject Code to inject
  * @return Source code after code injection
  */
-std::string injectCode(const std::string& content, const std::vector<FunctionLocation>& locations, const std::string& codeToInject) {
+std::string injectCode(const std::string& content, const std::vector<FunctionLocation>& locations, const std::string& codeToInject)
+{
     std::string result = content;
     
     // Sort location information in descending order (from back)
@@ -266,7 +272,7 @@ std::string injectCode(const std::string& content, const std::vector<FunctionLoc
     // Insert code into each function
     for (const auto& func : sortedLocations) {
         // Format code to inject (add newline and indentation)
-        std::string injection = "\n    " + codeToInject;
+        std::string injection = "\n" + codeToInject;
         if (!codeToInject.empty() && codeToInject.back() != '\n') {
             injection += "\n";
         }
@@ -284,7 +290,8 @@ std::string injectCode(const std::string& content, const std::vector<FunctionLoc
  * @param args Structure to store parsing results
  * @return true on successful parsing, false on failure
  */
-bool parseArguments(int argc, char* argv[], CommandLineArgs& args) {
+bool parseArguments(int argc, char* argv[], CommandLineArgs& args)
+{
     if (argc < 3) {
         std::cerr << "Usage: " << argv[0] << " <input_source_file> <injection_code_file> [-o <output_file>] [-e <exclude_pattern_file>]" << std::endl;
         std::cerr << "  1st arg ... input_source_file   : C/C++ source file to analyze" << std::endl;
@@ -347,7 +354,8 @@ bool parseArguments(int argc, char* argv[], CommandLineArgs& args) {
  * @param inputFile Path to source file to parse
  * @return Translation unit (AST), nullptr on failure
  */
-CXTranslationUnit parseSourceFile(CXIndex index, const std::string& inputFile) {
+CXTranslationUnit parseSourceFile(CXIndex index, const std::string& inputFile)
+{
     // Compiler options (include paths, etc.)
     const char* args[] = {
         "-I/usr/include",
@@ -383,7 +391,8 @@ CXTranslationUnit parseSourceFile(CXIndex index, const std::string& inputFile) {
 bool processAndWriteOutput(const std::string& outputFile, 
                            const std::string& sourceContent,
                            const std::vector<FunctionLocation>& functionLocations,
-                           const std::string& injectionCode) {
+                           const std::string& injectionCode)
+{
     if (functionLocations.empty()) {
         std::cerr << "No functions found in the source file." << std::endl;
         return true;  // Not an error even if no functions found
@@ -411,7 +420,8 @@ bool processAndWriteOutput(const std::string& outputFile,
 /**
  * Main function: Program entry point
  */
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[])
+{
     // Parse command line arguments
     CommandLineArgs args;
     if (!parseArguments(argc, argv, args)) {
