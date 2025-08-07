@@ -40,7 +40,6 @@ struct FunctionLocation {
  */
 struct VisitorClientData {
     std::vector<FunctionLocation>* functionLocations;  // Location information of all found functions
-    std::string* sourceContent;                        // Input source file content
     CXFile inputFile;                                  // File to process (libclang file handle)
 };
 
@@ -79,10 +78,9 @@ bool writeFile(const std::string& filename, const std::string& content) {
 /**
  * Find the start position of function body (right after the opening brace '{')
  * @param cursor Function cursor (libclang AST element)
- * @param content Source file content
  * @return Offset of function body start position (std::string::npos if not found)
  */
-size_t findFunctionBodyStart(CXCursor cursor, const std::string& content) {
+size_t findFunctionBodyStart(CXCursor cursor) {
     // Initialize cursor representing function body (CompoundStatement)
     CXCursor bodyStmt = clang_getNullCursor();
     
@@ -117,16 +115,7 @@ size_t findFunctionBodyStart(CXCursor cursor, const std::string& content) {
         clang_getSpellingLocation(startLoc
                     , nullptr /*&file*/, nullptr /*&line*/, nullptr /*&column*/, &offset);
         
-#if 0
-        // Find opening brace '{' from CompoundStatement position
-        for (size_t i = offset; i < content.length(); ++i) {
-            if (content[i] == '{') {
-                return i + 1; // Return position right after '{'
-            }
-        }
-#else
         return offset + 1; // Return position right after '{'
-#endif
     }
     
     return std::string::npos;  // If not found
@@ -172,7 +161,7 @@ CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor /*parent*/, CXClien
             func.functionName = clang_getCString(functionName);
             
             // Find the start position of function body
-            size_t bodyStartOffset = findFunctionBodyStart(cursor, *(visitorData->sourceContent));
+            size_t bodyStartOffset = findFunctionBodyStart(cursor);
             
             if (bodyStartOffset != std::string::npos) {
                 func.bodyStartOffset = bodyStartOffset;
@@ -399,7 +388,6 @@ int main(int argc, char* argv[]) {
     std::vector<FunctionLocation> functionLocations;
     VisitorClientData visitorData = {
         &functionLocations,
-        &sourceContent,
         inputFile
     };
     
