@@ -1,0 +1,5 @@
+# Build artifacts
+bin/
+
+# Test failure artifacts (ephemeral, for local debugging only)
+tests/failures/

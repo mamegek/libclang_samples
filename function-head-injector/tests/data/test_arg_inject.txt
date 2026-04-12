@@ -1,0 +1,1 @@
+printf("Function {{ class_name }}::{{ function_name }} has {{ num_args }} args: types={{ arg_types }}, names={{ arg_names }}\n");
