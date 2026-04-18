@@ -65,17 +65,20 @@ bool writeFile(const std::string &filename, const std::string &content) {
 }
 
 bool parseArguments(int argc, char *argv[], CommandLineArgs &args) {
-  if (argc < 2) {
-    std::cerr
-        << "Usage: " << argv[0]
-        << " <input_source_file> [injection_code_file] [-o <output_file>] [-e "
-           "<exclude_pattern_file>] [-H <header_injection_file>] [-m <mode>]"
-        << std::endl;
-    std::cerr
-        << "  1st arg ... input_source_file   : C/C++ source file to analyze"
-        << std::endl;
-    std::cerr << "  2nd arg ... injection_code_file : File containing code to "
-                 "inject at function starts (required for template mode)"
+  auto printUsage = [&]() {
+    std::cerr << "Usage: " << argv[0]
+              << " <input_source_file> [-m <mode>] [injection_code_file] [-o "
+                 "<output_file>]"
+                 " [-e <exclude_pattern_file>] [-H <header_injection_file>]"
+              << std::endl;
+    std::cerr << "  input_source_file   : C/C++ source file to analyze"
+              << std::endl;
+    std::cerr << "  injection_code_file : File containing code to "
+                 "inject at function starts (required for template mode, "
+                 "ignored otherwise)"
+              << std::endl;
+    std::cerr << "  -m mode                 : Generation mode: template "
+                 "(default), printf, usdt"
               << std::endl;
     std::cerr << "  -o output_file          : Output file (if not specified, "
                  "writes to stdout)"
@@ -86,14 +89,16 @@ bool parseArguments(int argc, char *argv[], CommandLineArgs &args) {
     std::cerr << "  -H header_injection_file: File containing code to inject "
                  "at the top of the file"
               << std::endl;
-    std::cerr << "  -m mode                 : Generation mode: template (default), printf, usdt"
-              << std::endl;
+  };
+
+  if (argc < 2) {
+    printUsage();
     return false;
   }
 
-  args.outputFile = "/dev/stdout"; // Default is stdout
-  args.excludePatternFile = "";    // Default is no exclude file
-  args.headerContentFile = "";     // Default is no header file
+  args.outputFile = "/dev/stdout";              // Default is stdout
+  args.excludePatternFile = "";                 // Default is no exclude file
+  args.headerContentFile = "";                  // Default is no header file
   args.injectionMode = InjectionMode::TEMPLATE; // Default mode
 
   std::vector<std::string> positionalArgs; // Store positional arguments
@@ -126,19 +131,21 @@ bool parseArguments(int argc, char *argv[], CommandLineArgs &args) {
     } else if ((arg == "-m") || (arg == "--mode")) {
       // Mode option
       if (i + 1 >= argc) {
-        std::cerr << "Error: -m requires an argument (template | printf | usdt)" << std::endl;
+        std::cerr << "Error: -m requires an argument (template | printf | usdt)"
+                  << std::endl;
         return false;
       }
       std::string modeStr = argv[++i];
       if (modeStr == "template") {
-          args.injectionMode = InjectionMode::TEMPLATE;
+        args.injectionMode = InjectionMode::TEMPLATE;
       } else if (modeStr == "printf") {
-          args.injectionMode = InjectionMode::PRINTF;
+        args.injectionMode = InjectionMode::PRINTF;
       } else if (modeStr == "usdt") {
-          args.injectionMode = InjectionMode::USDT;
+        args.injectionMode = InjectionMode::USDT;
       } else {
-          std::cerr << "Error: Unknown mode: " << modeStr << ". Allowed modes: template, printf, usdt" << std::endl;
-          return false;
+        std::cerr << "Error: Unknown mode: " << modeStr
+                  << ". Allowed modes: template, printf, usdt" << std::endl;
+        return false;
       }
     } else if (arg[0] == '-') {
       // Unknown option
@@ -151,22 +158,27 @@ bool parseArguments(int argc, char *argv[], CommandLineArgs &args) {
   }
 
   // Check number of positional arguments based on mode
-  if (args.injectionMode == InjectionMode::TEMPLATE && positionalArgs.size() < 2) {
-    std::cerr << "Error: Template mode requires exactly 2 positional arguments "
-                 "(input_source_file and injection_code_file)"
-              << std::endl;
+  if (positionalArgs.size() < 1) {
+    std::cerr
+        << "Error: Expected at least 1 positional argument (input_source_file)"
+        << std::endl;
+    printUsage();
     return false;
   }
-  if (positionalArgs.size() < 1) {
-    std::cerr << "Error: Expected at least 1 positional argument (input_source_file)" << std::endl;
+  if (args.injectionMode == InjectionMode::TEMPLATE &&
+      positionalArgs.size() < 2) {
+    std::cerr << "Error: Template mode requires a 2nd positional argument "
+                 "(injection_code_file)"
+              << std::endl;
     return false;
   }
 
   args.inputSourceFile = positionalArgs[0]; // First argument: input source file
   if (positionalArgs.size() > 1) {
-      args.hookContentFile = positionalArgs[1]; // Second argument: injection code file (optional for printf/usdt)
+    args.hookContentFile = positionalArgs[1]; // Second argument: injection code
+                                              // file (optional for printf/usdt)
   } else {
-      args.hookContentFile = "";
+    args.hookContentFile = "";
   }
 
   return true;
