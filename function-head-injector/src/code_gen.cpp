@@ -1,6 +1,5 @@
 #include "code_gen.h"
 #include <iostream>
-#include <algorithm>
 
 std::string generateTemplateHook(std::string str,
                                  const FunctionLocation &func) {
@@ -92,43 +91,16 @@ std::string generateUsdtHook(const FunctionLocation& func) {
     return result;
 }
 
-std::string injectCode(const std::string &content,
-                       const std::vector<FunctionLocation> &locations,
-                       const std::string &codeToInject,
-                       InjectionMode mode) {
-  std::string result = content;
-
-  // Sort location information in descending order (from back)
-  // Reason: Inserting from front would shift subsequent positions
-  std::vector<FunctionLocation> sortedLocations = locations;
-  std::sort(sortedLocations.begin(), sortedLocations.end(),
-            [](const FunctionLocation &a, const FunctionLocation &b) {
-              return a.bodyStartOffset > b.bodyStartOffset; // Descending sort
-            });
-
-  // Insert code into each function
-  for (const auto &func : sortedLocations) {
-    std::string customizedCode;
-    switch (mode) {
-        case InjectionMode::PRINTF:
-            customizedCode = generatePrintfHook(func);
-            break;
-        case InjectionMode::USDT:
-            customizedCode = generateUsdtHook(func);
-            break;
-        case InjectionMode::TEMPLATE:
-        default:
-            customizedCode = generateTemplateHook(codeToInject, func);
-            break;
-    }
-    std::string injection = "\n" + customizedCode;
-    if (!customizedCode.empty() && customizedCode.back() != '\n') {
-      injection += "\n";
-    }
-    result.insert(func.bodyStartOffset, injection);
-    std::cerr << "Injected code into function: " << func.functionName
-              << std::endl;
+std::string generateHookCode(const FunctionLocation &func,
+                             const std::string &templateCode,
+                             InjectionMode mode) {
+  switch (mode) {
+  case InjectionMode::PRINTF:
+    return generatePrintfHook(func);
+  case InjectionMode::USDT:
+    return generateUsdtHook(func);
+  case InjectionMode::TEMPLATE:
+  default:
+    return generateTemplateHook(templateCode, func);
   }
-
-  return result;
 }
