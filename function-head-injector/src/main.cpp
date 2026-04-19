@@ -4,6 +4,7 @@
 #include "code_gen.h"
 #include <clang-c/Rewrite.h>
 #include <iostream>
+#include <sstream>
 #include <cstdio>
 
 int main(int argc, char *argv[]) {
@@ -107,9 +108,20 @@ int main(int argc, char *argv[]) {
     if (hookCode.empty())
       continue;
 
-    std::string injection = "\n" + hookCode;
-    if (hookCode.back() != '\n') {
-      injection += "\n";
+    std::string injection;
+    if (args.indentWidth > 0) {
+      std::string indent(func.startColumn - 1 + args.indentWidth, ' ');
+      std::istringstream stream(hookCode);
+      std::string line;
+      while (std::getline(stream, line)) {
+        injection += indent + line + "\n";
+      }
+      injection = "\n" + injection;
+    } else {
+      injection = "\n" + hookCode;
+      if (injection.back() != '\n') {
+        injection += "\n";
+      }
     }
 
     CXSourceLocation loc = clang_getLocationForOffset(

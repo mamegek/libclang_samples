@@ -2,7 +2,7 @@
 #include "utils.h"
 #include <iostream>
 
-size_t findFunctionBodyStart(CXCursor cursor) {
+BodyStartInfo findFunctionBodyStart(CXCursor cursor) {
   // Initialize cursor representing function body (CompoundStatement)
   CXCursor bodyStmt = clang_getNullCursor();
 
@@ -35,14 +35,14 @@ size_t findFunctionBodyStart(CXCursor cursor) {
     CXSourceRange range = clang_getCursorExtent(bodyStmt);
     CXSourceLocation startLoc = clang_getRangeStart(range);
 
-    unsigned int offset;
+    unsigned int offset, column;
     clang_getSpellingLocation(startLoc, nullptr /*&file*/, nullptr /*&line*/,
-                              nullptr /*&column*/, &offset);
+                              &column, &offset);
 
-    return offset + 1; // Return position right after '{'
+    return {offset + 1, column}; // Return position right after '{' and column of '{'
   }
 
-  return std::string::npos; // If not found
+  return {std::string::npos, 0}; // If not found
 }
 
 CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor /*parent*/,
@@ -134,10 +134,11 @@ CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor /*parent*/,
       }
 
       // Find the start position of function body
-      size_t bodyStartOffset = findFunctionBodyStart(cursor);
+      BodyStartInfo bodyInfo = findFunctionBodyStart(cursor);
 
-      if (bodyStartOffset != std::string::npos) {
-        func.bodyStartOffset = bodyStartOffset;
+      if (bodyInfo.offset != std::string::npos) {
+        func.bodyStartOffset = bodyInfo.offset;
+        func.bodyBraceColumn = bodyInfo.column;
         visitorData->functionLocations->push_back(
             func); // Add found function to list
 

@@ -70,6 +70,7 @@ bool parseArguments(int argc, char *argv[], CommandLineArgs &args) {
               << " <input_source_file> [-m <mode>] [injection_code_file] [-o "
                  "<output_file>]"
                  " [-e <exclude_pattern_file>] [-H <header_injection_file>]"
+                 " [-i <indent_width>]"
               << std::endl;
     std::cerr << "  input_source_file   : C/C++ source file to analyze"
               << std::endl;
@@ -89,6 +90,9 @@ bool parseArguments(int argc, char *argv[], CommandLineArgs &args) {
     std::cerr << "  -H header_injection_file: File containing code to inject "
                  "at the top of the file"
               << std::endl;
+    std::cerr << "  -i indent_width         : Indentation width for injected "
+                 "code (default: 2, 0 to disable)"
+              << std::endl;
   };
 
   if (argc < 2) {
@@ -100,6 +104,7 @@ bool parseArguments(int argc, char *argv[], CommandLineArgs &args) {
   args.excludePatternFile = "";                 // Default is no exclude file
   args.headerContentFile = "";                  // Default is no header file
   args.injectionMode = InjectionMode::TEMPLATE; // Default mode
+  args.indentWidth = 4;                         // Default indent width
 
   std::vector<std::string> positionalArgs; // Store positional arguments
 
@@ -147,6 +152,13 @@ bool parseArguments(int argc, char *argv[], CommandLineArgs &args) {
                   << ". Allowed modes: template, printf, usdt" << std::endl;
         return false;
       }
+    } else if ((arg == "-i") || (arg == "--indent")) {
+      // Indent width option
+      if (i + 1 >= argc) {
+        std::cerr << "Error: -i requires an argument" << std::endl;
+        return false;
+      }
+      args.indentWidth = std::stoi(argv[++i]);
     } else if (arg[0] == '-') {
       // Unknown option
       std::cerr << "Error: Unknown option: " << arg << std::endl;

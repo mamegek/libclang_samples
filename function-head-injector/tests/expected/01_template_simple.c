@@ -1,21 +1,21 @@
 #include <stdio.h>
 
 int add(int a, int b) {
-/******** DEBUG CODE ********/
-printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
-/******** DEBUG CODE ********/
+  /******** DEBUG CODE ********/
+  printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
+  /******** DEBUG CODE ********/
  return a + b; }
 
 void print_message(const char *msg) {
-/******** DEBUG CODE ********/
-printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
-/******** DEBUG CODE ********/
+  /******** DEBUG CODE ********/
+  printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
+  /******** DEBUG CODE ********/
  printf("Message: %s\n", msg); }
 
 int factorial(int n) {
-/******** DEBUG CODE ********/
-printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
-/******** DEBUG CODE ********/
+  /******** DEBUG CODE ********/
+  printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
+  /******** DEBUG CODE ********/
 
   if (n <= 1) {
     return 1;
@@ -24,9 +24,9 @@ printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
 }
 
 double calculate_average(int *array, int size) {
-/******** DEBUG CODE ********/
-printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
-/******** DEBUG CODE ********/
+  /******** DEBUG CODE ********/
+  printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
+  /******** DEBUG CODE ********/
 
   if (size == 0) {
     return 0.0;
@@ -41,9 +41,9 @@ printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
 }
 
 void swap(int *a, int *b) {
-/******** DEBUG CODE ********/
-printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
-/******** DEBUG CODE ********/
+  /******** DEBUG CODE ********/
+  printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
+  /******** DEBUG CODE ********/
 
   int temp = *a;
   *a = *b;
@@ -51,9 +51,9 @@ printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
 }
 
 int main() {
-/******** DEBUG CODE ********/
-printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
-/******** DEBUG CODE ********/
+  /******** DEBUG CODE ********/
+  printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
+  /******** DEBUG CODE ********/
 
   printf("Testing functions\n");
 

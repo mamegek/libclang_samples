@@ -25,6 +25,7 @@ struct CommandLineArgs {
   std::string excludePatternFile; // File containing regex patterns for functions to exclude
   std::string headerContentFile;  // File containing code to inject at the top of the file
   InjectionMode injectionMode;    // mode of injection: TEMPLATE, PRINTF, USDT
+  int indentWidth;                // Indentation width for injected code (0 to disable)
 };
 
 struct ArgumentInfo {
@@ -48,6 +49,7 @@ struct FunctionLocation {
   std::vector<ArgumentInfo> detailedArgs; // Detailed argument info
   unsigned int bodyStartOffset; // Function body start position (byte offset
                                 // from file beginning)
+  unsigned int bodyBraceColumn; // Column of '{' (1-based, for indentation)
 };
 
 /**
