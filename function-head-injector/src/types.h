@@ -26,6 +26,8 @@ struct CommandLineArgs {
   std::string headerContentFile;  // File containing code to inject at the top of the file
   InjectionMode injectionMode;    // mode of injection: TEMPLATE, PRINTF, USDT
   int indentWidth;                // Indentation width for injected code (0 to disable)
+  int minLines;                   // Minimum function lines to inject (0 to disable)
+  bool inplace;                   // Overwrite input file
 };
 
 struct ArgumentInfo {
@@ -50,6 +52,7 @@ struct FunctionLocation {
   unsigned int bodyStartOffset; // Function body start position (byte offset
                                 // from file beginning)
   unsigned int bodyBraceColumn; // Column of '{' (1-based, for indentation)
+  unsigned int bodyIndentColumn; // Column of first statement (1-based, 0 if empty body)
 };
 
 /**

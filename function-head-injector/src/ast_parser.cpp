@@ -39,10 +39,23 @@ BodyStartInfo findFunctionBodyStart(CXCursor cursor) {
     clang_getSpellingLocation(startLoc, nullptr /*&file*/, nullptr /*&line*/,
                               &column, &offset);
 
-    return {offset + 1, column}; // Return position right after '{' and column of '{'
+    // Get column of first statement inside body (for auto-indent)
+    unsigned int firstStmtColumn = 0;
+    clang_visitChildren(
+        bodyStmt,
+        [](CXCursor c, CXCursor, CXClientData data) {
+          unsigned int col;
+          clang_getSpellingLocation(clang_getCursorLocation(c), nullptr,
+                                    nullptr, &col, nullptr);
+          *static_cast<unsigned int *>(data) = col;
+          return CXChildVisit_Break;
+        },
+        &firstStmtColumn);
+
+    return {offset + 1, column, firstStmtColumn};
   }
 
-  return {std::string::npos, 0}; // If not found
+  return {std::string::npos, 0, 0}; // If not found
 }
 
 CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor /*parent*/,
@@ -139,6 +152,7 @@ CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor /*parent*/,
       if (bodyInfo.offset != std::string::npos) {
         func.bodyStartOffset = bodyInfo.offset;
         func.bodyBraceColumn = bodyInfo.column;
+        func.bodyIndentColumn = bodyInfo.firstStmtColumn;
         visitorData->functionLocations->push_back(
             func); // Add found function to list
 

@@ -103,14 +103,30 @@ int main(int argc, char *argv[]) {
 
   // Inject hook code into each function body
   for (const auto &func : functionLocations) {
+    unsigned int funcLines = func.endLine - func.startLine + 1;
+    if (args.minLines > 0 && funcLines < static_cast<unsigned>(args.minLines)) {
+      std::cerr << "Skipping short function: " << func.functionName
+                << " (" << funcLines << " lines)" << std::endl;
+      continue;
+    }
+
     std::string hookCode =
         generateHookCode(func, injectionCode, args.injectionMode);
     if (hookCode.empty())
       continue;
 
     std::string injection;
-    if (args.indentWidth > 0) {
-      std::string indent(func.startColumn - 1 + args.indentWidth, ' ');
+    int indentSize = 0;
+    if (args.indentWidth == -1) {
+      // Auto-detect: use first statement's column, fallback to startColumn + 4
+      indentSize = func.bodyIndentColumn > 0
+                       ? func.bodyIndentColumn - 1
+                       : func.startColumn - 1 + 4;
+    } else if (args.indentWidth > 0) {
+      indentSize = func.startColumn - 1 + args.indentWidth;
+    }
+    if (indentSize > 0) {
+      std::string indent(indentSize, ' ');
       std::istringstream stream(hookCode);
       std::string line;
       while (std::getline(stream, line)) {

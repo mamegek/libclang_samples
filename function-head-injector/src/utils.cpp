@@ -70,7 +70,7 @@ bool parseArguments(int argc, char *argv[], CommandLineArgs &args) {
               << " <input_source_file> [-m <mode>] [injection_code_file] [-o "
                  "<output_file>]"
                  " [-e <exclude_pattern_file>] [-H <header_injection_file>]"
-                 " [-i <indent_width>]"
+                 " [-i <indent_width>] [-l <min_lines>]"
               << std::endl;
     std::cerr << "  input_source_file   : C/C++ source file to analyze"
               << std::endl;
@@ -87,11 +87,16 @@ bool parseArguments(int argc, char *argv[], CommandLineArgs &args) {
     std::cerr << "  -e exclude_pattern_file : File containing regex patterns "
                  "for functions to exclude (one per line)"
               << std::endl;
-    std::cerr << "  -H header_injection_file: File containing code to inject "
+    std::cerr << "  -H header_content_file  : File containing code to inject "
                  "at the top of the file"
               << std::endl;
     std::cerr << "  -i indent_width         : Indentation width for injected "
-                 "code (default: 2, 0 to disable)"
+                 "code (default: 4, 0 to disable, 'auto' to detect)"
+              << std::endl;
+    std::cerr << "  --min-lines minimum_line: Skip functions shorter than "
+                 "this many lines (default: 0 = no skip)"
+              << std::endl;
+    std::cerr << "  --inplace               : Overwrite the input file"
               << std::endl;
   };
 
@@ -105,6 +110,8 @@ bool parseArguments(int argc, char *argv[], CommandLineArgs &args) {
   args.headerContentFile = "";                  // Default is no header file
   args.injectionMode = InjectionMode::TEMPLATE; // Default mode
   args.indentWidth = 4;                         // Default indent width
+  args.minLines = 0;                            // Default: no minimum
+  args.inplace = false;                         // Default: don't overwrite
 
   std::vector<std::string> positionalArgs; // Store positional arguments
 
@@ -158,7 +165,17 @@ bool parseArguments(int argc, char *argv[], CommandLineArgs &args) {
         std::cerr << "Error: -i requires an argument" << std::endl;
         return false;
       }
-      args.indentWidth = std::stoi(argv[++i]);
+      std::string val = argv[++i];
+      args.indentWidth = (val == "auto") ? -1 : std::stoi(val);
+    } else if ( arg == "--min-lines") {
+      // Minimum function lines option
+      if (i + 1 >= argc) {
+        std::cerr << "Error: --min-line requires an argument" << std::endl;
+        return false;
+      }
+      args.minLines = std::stoi(argv[++i]);
+    } else if (arg == "--inplace") {
+      args.inplace = true;
     } else if (arg[0] == '-') {
       // Unknown option
       std::cerr << "Error: Unknown option: " << arg << std::endl;
@@ -186,6 +203,9 @@ bool parseArguments(int argc, char *argv[], CommandLineArgs &args) {
   }
 
   args.inputSourceFile = positionalArgs[0]; // First argument: input source file
+  if (args.inplace) {
+    args.outputFile = args.inputSourceFile;
+  }
   if (positionalArgs.size() > 1) {
     args.hookContentFile = positionalArgs[1]; // Second argument: injection code
                                               // file (optional for printf/usdt)
