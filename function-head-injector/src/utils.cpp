@@ -90,9 +90,6 @@ bool parseArguments(int argc, char *argv[], CommandLineArgs &args) {
     std::cerr << "  -H header_content_file  : File containing code to inject "
                  "at the top of the file"
               << std::endl;
-    std::cerr << "  -i indent_width         : Indentation width for injected "
-                 "code (default: 4, 0 to disable, 'auto' to detect)"
-              << std::endl;
     std::cerr << "  --min-lines minimum_line: Skip functions shorter than "
                  "this many lines (default: 0 = no skip)"
               << std::endl;
@@ -109,7 +106,7 @@ bool parseArguments(int argc, char *argv[], CommandLineArgs &args) {
   args.excludePatternFile = "";                 // Default is no exclude file
   args.headerContentFile = "";                  // Default is no header file
   args.injectionMode = InjectionMode::TEMPLATE; // Default mode
-  args.indentWidth = 4;                         // Default indent width
+  args.indentWidth = -1;                        // Default indent width (-1: auto-indent)
   args.minLines = 0;                            // Default: no minimum
   args.inplace = false;                         // Default: don't overwrite
 
@@ -159,10 +156,10 @@ bool parseArguments(int argc, char *argv[], CommandLineArgs &args) {
                   << ". Allowed modes: template, printf, usdt" << std::endl;
         return false;
       }
-    } else if ((arg == "-i") || (arg == "--indent")) {
+    } else if ((arg == "--indent")) {
       // Indent width option
       if (i + 1 >= argc) {
-        std::cerr << "Error: -i requires an argument" << std::endl;
+        std::cerr << "Error: --indent requires an argument" << std::endl;
         return false;
       }
       std::string val = argv[++i];

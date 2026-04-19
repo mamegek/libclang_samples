@@ -1,19 +1,13 @@
 #include <stdio.h>
 
 // One-line function with body on same line
-int add(int a, int b) {
-    printf(">> add called (a=%d, b=%d)\n", a, b);
- return a + b; }
+int add(int a, int b) {printf(">> add called (a=%d, b=%d)\n", a, b); return a + b; }
 
 // Empty function body
-void noop() {
-    printf(">> noop called\n");
-}
+void noop() {printf(">> noop called\n");}
 
 // Empty body with spaces
-void noop2() {
-    printf(">> noop2 called\n");
-  }
+void noop2() {printf(">> noop2 called\n");  }
 
 // Function with only a single return
 int zero() {

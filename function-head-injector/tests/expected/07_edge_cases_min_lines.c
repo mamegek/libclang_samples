@@ -1,24 +1,16 @@
 #include <stdio.h>
 
 // One-line function with body on same line
-int add(int a, int b) {
-                        printf(">> add called (a=%d, b=%d)\n", a, b);
- return a + b; }
+int add(int a, int b) { return a + b; }
 
 // Empty function body
-void noop() {
-    printf(">> noop called\n");
-}
+void noop() {}
 
 // Empty body with spaces
-void noop2() {
-    printf(">> noop2 called\n");
-  }
+void noop2() {  }
 
 // Function with only a single return
 int zero() {
-    printf(">> zero called\n");
-
     return 0;
 }
 
@@ -34,8 +26,6 @@ void nested() {
 // Multi-line signature, body on next line
 void long_signature(int a, int b,
                     int c, int d) {
-    printf(">> long_signature called (a=%d, b=%d, c=%d, d=%d)\n", a, b, c, d);
-
     printf("%d %d %d %d\n", a, b, c, d);
 }
 

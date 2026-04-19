@@ -1,15 +1,11 @@
 #include <stdio.h>
 
-int add(int a, int b) {
-    DTRACE_PROBE2(app, add, a, b);
- return a + b; }
+int add(int a, int b) {DTRACE_PROBE2(app, add, a, b); return a + b; }
 
-void print_message(const char *msg) {
-    DTRACE_PROBE1(app, print_message, msg);
- printf("Message: %s\n", msg); }
+void print_message(const char *msg) {DTRACE_PROBE1(app, print_message, msg); printf("Message: %s\n", msg); }
 
 int factorial(int n) {
-    DTRACE_PROBE1(app, factorial, n);
+  DTRACE_PROBE1(app, factorial, n);
 
   if (n <= 1) {
     return 1;
@@ -18,7 +14,7 @@ int factorial(int n) {
 }
 
 double calculate_average(int *array, int size) {
-    DTRACE_PROBE2(app, calculate_average, array, size);
+  DTRACE_PROBE2(app, calculate_average, array, size);
 
   if (size == 0) {
     return 0.0;
@@ -33,7 +29,7 @@ double calculate_average(int *array, int size) {
 }
 
 void swap(int *a, int *b) {
-    DTRACE_PROBE2(app, swap, a, b);
+  DTRACE_PROBE2(app, swap, a, b);
 
   int temp = *a;
   *a = *b;
@@ -41,7 +37,7 @@ void swap(int *a, int *b) {
 }
 
 int main() {
-    DTRACE_PROBE(app, main);
+  DTRACE_PROBE(app, main);
 
   printf("Testing functions\n");
 

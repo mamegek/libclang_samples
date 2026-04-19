@@ -125,7 +125,10 @@ int main(int argc, char *argv[]) {
     } else if (args.indentWidth > 0) {
       indentSize = func.startColumn - 1 + args.indentWidth;
     }
-    if (indentSize > 0) {
+
+    if (funcLines == 1) {
+      injection = std::regex_replace(hookCode, std::regex("\n"), " ");
+    }else{
       std::string indent(indentSize, ' ');
       std::istringstream stream(hookCode);
       std::string line;
@@ -133,11 +136,6 @@ int main(int argc, char *argv[]) {
         injection += indent + line + "\n";
       }
       injection = "\n" + injection;
-    } else {
-      injection = "\n" + hookCode;
-      if (injection.back() != '\n') {
-        injection += "\n";
-      }
     }
 
     CXSourceLocation loc = clang_getLocationForOffset(
