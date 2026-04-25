@@ -1,4 +1,5 @@
 #include "utils.h"
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -95,7 +96,20 @@ bool parseArguments(int argc, char *argv[], CommandLineArgs &args) {
               << std::endl;
     std::cerr << "  --inplace               : Overwrite the input file"
               << std::endl;
+    std::cerr << "  --revert                : Remove previously injected code "
+                 "(blocks between FHI_INJECT_BEGIN/END markers)"
+              << std::endl;
+    std::cerr << "  -h, --help              : Show this help message and exit"
+              << std::endl;
   };
+
+  for (int i = 1; i < argc; i++) {
+    std::string arg = argv[i];
+    if (arg == "-h" || arg == "--help") {
+      printUsage();
+      std::exit(0);
+    }
+  }
 
   if (argc < 2) {
     printUsage();
@@ -109,6 +123,7 @@ bool parseArguments(int argc, char *argv[], CommandLineArgs &args) {
   args.indentWidth = -1;                        // Default indent width (-1: auto-indent)
   args.minLines = 0;                            // Default: no minimum
   args.inplace = false;                         // Default: don't overwrite
+  args.revert = false;                          // Default: inject mode
 
   std::vector<std::string> positionalArgs; // Store positional arguments
 
@@ -173,6 +188,8 @@ bool parseArguments(int argc, char *argv[], CommandLineArgs &args) {
       args.minLines = std::stoi(argv[++i]);
     } else if (arg == "--inplace") {
       args.inplace = true;
+    } else if (arg == "--revert") {
+      args.revert = true;
     } else if (arg[0] == '-') {
       // Unknown option
       std::cerr << "Error: Unknown option: " << arg << std::endl;
@@ -191,7 +208,7 @@ bool parseArguments(int argc, char *argv[], CommandLineArgs &args) {
     printUsage();
     return false;
   }
-  if (args.injectionMode == InjectionMode::TEMPLATE &&
+  if (!args.revert && args.injectionMode == InjectionMode::TEMPLATE &&
       positionalArgs.size() < 2) {
     std::cerr << "Error: Template mode requires a 2nd positional argument "
                  "(injection_code_file)"

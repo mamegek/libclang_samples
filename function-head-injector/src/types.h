@@ -28,6 +28,7 @@ struct CommandLineArgs {
   int indentWidth;                // Indentation width for injected code (0 to disable)
   int minLines;                   // Minimum function lines to inject (0 to disable)
   bool inplace;                   // Overwrite input file
+  bool revert;                    // Remove previously injected code
 };
 
 struct ArgumentInfo {

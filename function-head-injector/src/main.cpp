@@ -4,14 +4,28 @@
 #include "code_gen.h"
 #include <clang-c/Rewrite.h>
 #include <iostream>
-#include <sstream>
 #include <cstdio>
+#include <regex>
 
 int main(int argc, char *argv[]) {
   // Parse command line arguments
   CommandLineArgs args;
   if (!parseArguments(argc, argv, args)) {
     return 1;
+  }
+
+  // Revert mode: strip previously injected blocks and exit
+  if (args.revert) {
+    std::string content = readFile(args.inputSourceFile);
+    std::regex block(
+        R"(\n?/\* FHI_INJECT_BEGIN \*/[\s\S]*?/\* FHI_INJECT_END \*/\n)");
+    std::string reverted = std::regex_replace(content, block, "");
+    if (args.outputFile == "/dev/stdout") {
+      std::cout << reverted;
+    } else if (!writeFile(args.outputFile, reverted)) {
+      return 1;
+    }
+    return 0;
   }
 
   // Read code to inject
@@ -89,11 +103,12 @@ int main(int argc, char *argv[]) {
 
   // Inject header code at the beginning of the file
   if (!headerCode.empty()) {
-    std::string formattedHeader = headerCode;
+    std::string formattedHeader = "/* FHI_INJECT_BEGIN */\n";
+    formattedHeader += headerCode;
     if (formattedHeader.back() != '\n') {
       formattedHeader += "\n";
     }
-    formattedHeader += "\n"; // Add extra newline for separation
+    formattedHeader += "/* FHI_INJECT_END */\n";
 
     CXSourceLocation fileStart =
         clang_getLocationForOffset(translationUnit, inputFile, 0);
@@ -115,28 +130,10 @@ int main(int argc, char *argv[]) {
     if (hookCode.empty())
       continue;
 
-    std::string injection;
-    int indentSize = 0;
-    if (args.indentWidth == -1) {
-      // Auto-detect: use first statement's column, fallback to startColumn + 4
-      indentSize = func.bodyIndentColumn > 0
-                       ? func.bodyIndentColumn - 1
-                       : func.startColumn - 1 + 4;
-    } else if (args.indentWidth > 0) {
-      indentSize = func.startColumn - 1 + args.indentWidth;
-    }
-
-    if (funcLines == 1) {
-      injection = std::regex_replace(hookCode, std::regex("\n"), " ");
-    }else{
-      std::string indent(indentSize, ' ');
-      std::istringstream stream(hookCode);
-      std::string line;
-      while (std::getline(stream, line)) {
-        injection += indent + line + "\n";
-      }
-      injection = "\n" + injection;
-    }
+    std::string injection = "\n/* FHI_INJECT_BEGIN */\n";
+    injection += hookCode;
+    if (injection.back() != '\n') injection += "\n";
+    injection += "/* FHI_INJECT_END */\n";
 
     CXSourceLocation loc = clang_getLocationForOffset(
         translationUnit, inputFile, func.bodyStartOffset);
