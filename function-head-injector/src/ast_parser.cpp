@@ -58,118 +58,119 @@ BodyStartInfo findFunctionBodyStart(CXCursor cursor) {
   return {std::string::npos, 0, 0, 0}; // If not found
 }
 
+static std::string getFullFunctionName(CXCursor cursor, const std::string& functionName) {
+  CXCursorKind kind = clang_getCursorKind(cursor);
+  if (kind == CXCursor_CXXMethod) {
+    CXCursor parentCursor = clang_getCursorSemanticParent(cursor);
+    CXString parentName = clang_getCursorSpelling(parentCursor);
+    std::string className = clang_getCString(parentName);
+    std::string fullName = className + "::" + functionName;
+    clang_disposeString(parentName);
+    return fullName;
+  }
+  return functionName;
+}
+
+static std::vector<ArgumentInfo> extractArgumentInfos(CXCursor cursor) {
+  std::vector<ArgumentInfo> args;
+  int numArgs = clang_Cursor_getNumArguments(cursor);
+  CXType funcType = clang_getCursorType(cursor);
+
+  for (int i = 0; i < numArgs; ++i) {
+    CXCursor argCursor = clang_Cursor_getArgument(cursor, i);
+    CXString argName = clang_getCursorSpelling(argCursor);
+    CXType argType = clang_getArgType(funcType, i);
+    CXString typeName = clang_getTypeSpelling(argType);
+
+    std::string argNameStr = clang_getCString(argName);
+    std::string argTypeStr = clang_getCString(typeName);
+    if (argNameStr.empty()) {
+      argNameStr = "arg" + std::to_string(i);
+    }
+    args.push_back({argNameStr, argTypeStr});
+
+    clang_disposeString(argName);
+    clang_disposeString(typeName);
+  }
+  return args;
+}
+
 CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor /*parent*/,
                                    CXClientData clientData) {
   VisitorClientData *visitorData = static_cast<VisitorClientData *>(clientData);
   CXCursorKind kind = clang_getCursorKind(cursor);
 
-  // Process only function declarations or C++ methods
-  if (kind == CXCursor_FunctionDecl || kind == CXCursor_CXXMethod) {
-    CXString functionName = clang_getCursorSpelling(cursor);
-    CXSourceRange range = clang_getCursorExtent(cursor);
-    CXSourceLocation startLoc = clang_getRangeStart(range);
-    CXSourceLocation endLoc = clang_getRangeEnd(range);
+  if (kind != CXCursor_FunctionDecl && kind != CXCursor_CXXMethod) {
+    return CXChildVisit_Recurse;
+  }
 
-    CXFile file;
-    unsigned int startLine, startColumn, endLine, endColumn;
-    clang_getSpellingLocation(startLoc, &file, &startLine, &startColumn,
-                              nullptr);
-    clang_getSpellingLocation(endLoc, &file, &endLine, &endColumn, nullptr);
+  CXString cxFuncName = clang_getCursorSpelling(cursor);
+  std::string functionName = clang_getCString(cxFuncName);
+  
+  CXSourceRange range = clang_getCursorExtent(cursor);
+  CXSourceLocation startLoc = clang_getRangeStart(range);
+  CXSourceLocation endLoc = clang_getRangeEnd(range);
 
-    // Process only functions defined in the target input file
-    // (Exclude functions from other files like headers, e.g.  __bswap_16)
-    if (!file || !clang_File_isEqual(file, visitorData->inputFile)) {
-      clang_disposeString(functionName);
-      return CXChildVisit_Continue;
-    }
+  CXFile file;
+  unsigned int startLine, startColumn, endLine, endColumn;
+  clang_getSpellingLocation(startLoc, &file, &startLine, &startColumn, nullptr);
+  clang_getSpellingLocation(endLoc, &file, &endLine, &endColumn, nullptr);
 
-    // Process only function definitions (implementations, not declarations)
-    if (clang_isCursorDefinition(cursor)) {
-      // Find the start position of function body
-      BodyStartInfo bodyInfo = findFunctionBodyStart(cursor);
+  if (!file || !clang_File_isEqual(file, visitorData->inputFile)) {
+    clang_disposeString(cxFuncName);
+    return CXChildVisit_Continue;
+  }
 
-      if (bodyInfo.offset == std::string::npos) {
-        clang_disposeString(functionName);
-        return CXChildVisit_Continue;
-      }
+  std::string fullName = getFullFunctionName(cursor, functionName);
 
+  if (visitorData->excludePatterns &&
+      shouldExcludeFunction(fullName, *(visitorData->excludePatterns))) {
+    std::cerr << "Excluding function: " << fullName << " (matched exclude pattern)" << std::endl;
+    clang_disposeString(cxFuncName);
+    return CXChildVisit_Continue;
+  }
+
+  if (clang_isCursorDefinition(cursor)) {
+    BodyStartInfo bodyInfo = findFunctionBodyStart(cursor);
+    if (bodyInfo.offset != std::string::npos) {
       FunctionLocation func;
-      func.startBodyLine = bodyInfo.line; // Use body start line
-      func.startBodyColumn = bodyInfo.column; // Use body start column
+      func.startBodyLine = bodyInfo.line;
+      func.startBodyColumn = bodyInfo.column;
       func.endLine = endLine;
       func.endColumn = endColumn;
-      func.functionName = clang_getCString(functionName);
-
-      // Get class name if it's a method
+      func.functionName = functionName;
+      
       if (kind == CXCursor_CXXMethod) {
-        CXCursor parentCursor = clang_getCursorSemanticParent(cursor);
-        CXString parentName = clang_getCursorSpelling(parentCursor);
-        func.className = clang_getCString(parentName);
-        clang_disposeString(parentName);
-      } else {
-        func.className = "";
+        size_t pos = fullName.find("::");
+        func.className = fullName.substr(0, pos);
       }
 
-      // Get arguments
-      int numArgs = clang_Cursor_getNumArguments(cursor);
-      func.numArgs = numArgs;
-      CXType funcType = clang_getCursorType(cursor);
-
-      std::string argNamesStr = "";
-      std::string argTypesStr = "";
-      for (int i = 0; i < numArgs; ++i) {
-        CXCursor argCursor = clang_Cursor_getArgument(cursor, i);
-        CXString argName = clang_getCursorSpelling(argCursor);
-        CXType argType = clang_getArgType(funcType, i);
-        CXString typeName = clang_getTypeSpelling(argType);
-
-        std::string argNameStr = clang_getCString(argName);
-        std::string argTypeStr = clang_getCString(typeName);
-        if (argNameStr.empty()) {
-            argNameStr = "arg" + std::to_string(i); // Assign dummy if missing
+      func.detailedArgs = extractArgumentInfos(cursor);
+      func.numArgs = func.detailedArgs.size();
+      
+      // Build comma-separated strings for backward compatibility or simple use
+      for (size_t i = 0; i < func.detailedArgs.size(); ++i) {
+        func.argNames += func.detailedArgs[i].name;
+        func.argTypes += func.detailedArgs[i].type;
+        if (i < func.detailedArgs.size() - 1) {
+          func.argNames += ", ";
+          func.argTypes += ", ";
         }
-        func.detailedArgs.push_back({argNameStr, argTypeStr});
-
-        argNamesStr += argNameStr;
-        argTypesStr += argTypeStr;
-
-        if (i < numArgs - 1) {
-          argNamesStr += ", ";
-          argTypesStr += ", ";
-        }
-
-        clang_disposeString(argName);
-        clang_disposeString(typeName);
-      }
-      func.argNames = argNamesStr;
-      func.argTypes = argTypesStr;
-
-      // Check if function should be excluded
-      if (visitorData->excludePatterns &&
-          shouldExcludeFunction(func.functionName,
-                                *(visitorData->excludePatterns))) {
-        std::cerr << "Excluding function: " << func.functionName
-                  << " (matched exclude pattern)" << std::endl;
-        clang_disposeString(functionName);
-        return CXChildVisit_Continue;
       }
 
       func.bodyStartOffset = bodyInfo.offset;
       func.bodyBraceColumn = bodyInfo.column;
       func.bodyIndentColumn = bodyInfo.firstStmtColumn;
-      visitorData->functionLocations->push_back(
-          func); // Add found function to list
+      visitorData->functionLocations->push_back(func);
 
-      // Debug output: Display information about found function
-      std::cerr << "Found function: " << func.functionName << " at body line "
+      std::cerr << "Found function: " << fullName << " at body line "
                 << func.startBodyLine << ":" << func.startBodyColumn << " to line " << endLine
                 << ":" << endColumn << std::endl;
     }
-
-    clang_disposeString(functionName);
   }
 
-  return CXChildVisit_Recurse; // Visit child nodes recursively
+  clang_disposeString(cxFuncName);
+  return CXChildVisit_Recurse;
 }
 
 CXTranslationUnit parseSourceFile(CXIndex index, const std::string &inputFile) {

@@ -7,167 +7,137 @@
 #include <cstdio>
 #include <regex>
 
-int main(int argc, char *argv[]) {
-  // Parse command line arguments
-  CommandLineArgs args;
-  if (!parseArguments(argc, argv, args)) {
-    return 1;
-  }
-
-  // Revert mode: strip previously injected blocks and exit
-  if (args.revert) {
+/**
+ * Revert injected code from the source file
+ */
+int handleRevert(const CommandLineArgs& args) {
     std::string content = readFile(args.inputSourceFile);
-    // Escape markers for regex if necessary, but since they are simple /* */ we can construct the regex
-    std::string pattern = R"(\n?)" + std::regex_replace(INJECT_BEGIN, std::regex(R"(\*)"), R"(\*)") + 
-                         R"([\s\S]*?)" + std::regex_replace(INJECT_END, std::regex(R"(\*)"), R"(\*)") + R"(\n)";
+    if (content.empty()) return 1;
+
+    // Escape markers for regex
+    std::string beginMarker = std::regex_replace(INJECT_BEGIN, std::regex(R"(\*)"), R"(\*)");
+    std::string endMarker = std::regex_replace(INJECT_END, std::regex(R"(\*)"), R"(\*)");
+    std::string pattern = R"(\n?)" + beginMarker + R"([\s\S]*?)" + endMarker + R"(\n)";
+    
     std::regex block(pattern);
     std::string reverted = std::regex_replace(content, block, "");
+    
     if (args.outputFile == "/dev/stdout") {
-      std::cout << reverted;
+        std::cout << reverted;
     } else if (!writeFile(args.outputFile, reverted)) {
-      return 1;
+        return 1;
     }
     return 0;
-  }
+}
 
-  // Read code to inject
-  std::string injectionCode;
-  if (!args.hookContentFile.empty()) {
-    injectionCode = readFile(args.hookContentFile);
-    if (injectionCode.empty()) {
-      std::cerr << "Warning: Hook content file is empty or could not be read: "
-                << args.hookContentFile << std::endl;
-    }
-  }
-
-  // Remove trailing newlines from injection code (for cleaner formatting)
-  while (!injectionCode.empty() && injectionCode.back() == '\n') {
-    injectionCode.pop_back();
-  }
-
-  // Read header injection code
-  std::string headerCode;
-  if (!args.headerContentFile.empty()) {
-    headerCode = readFile(args.headerContentFile);
-    if (headerCode.empty()) {
-      std::cerr
-          << "Warning: Header content file is empty or could not be read: "
-          << args.headerContentFile << std::endl;
-    }
-  }
-
-  // Create libclang index
-  // First argument: Exclude declarations from PCH (PreCompiledHeader)
-  // Second argument: Don't display diagnostic (0)
-  CXIndex index = clang_createIndex(1, 0);
-
-  // Parse source file and build AST
-  CXTranslationUnit translationUnit =
-      parseSourceFile(index, args.inputSourceFile);
-  if (translationUnit == nullptr) {
-    clang_disposeIndex(index);
-    return 1;
-  }
-
-  // Get handle for input file (to identify file during function visiting)
-  CXFile inputFile =
-      clang_getFile(translationUnit, args.inputSourceFile.c_str());
-  if (!inputFile) {
-    std::cerr << "Error: Unable to get CXFile for input file: "
-              << args.inputSourceFile << std::endl;
-    clang_disposeTranslationUnit(translationUnit);
-    clang_disposeIndex(index);
-    return 1;
-  }
-
-  // Read exclude patterns from file (empty if no file specified)
-  std::vector<std::regex> excludePatterns =
-      readExcludePatterns(args.excludePatternFile);
-
-  // Prepare client data for visitor
-  std::vector<FunctionLocation> functionLocations;
-  VisitorClientData visitorData = {&functionLocations, inputFile,
-                                   &excludePatterns};
-
-  // Visit all nodes from AST root to find functions
-  CXCursor rootCursor = clang_getTranslationUnitCursor(translationUnit);
-  clang_visitChildren(rootCursor, functionVisitor, &visitorData);
-
-  if (functionLocations.empty()) {
-    std::cerr << "No functions found in the source file." << std::endl;
-  } else {
-    std::cerr << "\nTotal functions found: " << functionLocations.size()
-              << std::endl;
-  }
-
-  // Create CXRewriter for source-to-source transformation
-  CXRewriter rewriter = clang_CXRewriter_create(translationUnit);
-
-  // Inject header code at the beginning of the file
-  if (!headerCode.empty() || !functionLocations.empty()) {
+/**
+ * Inject common header code at the top of the file
+ */
+void injectHeader(CXRewriter rewriter, CXTranslationUnit tu, CXFile file, const std::string& headerCode) {
     std::string formattedHeader = INJECT_BEGIN + "\n";
     formattedHeader += headerCode;
     if (formattedHeader.back() != '\n') {
-      formattedHeader += "\n";
+        formattedHeader += "\n";
     }
     formattedHeader += INJECT_END + "\n";
 
-    CXSourceLocation fileStart =
-        clang_getLocationForOffset(translationUnit, inputFile, 0);
-    clang_CXRewriter_insertTextBefore(rewriter, fileStart,
-                                      formattedHeader.c_str());
-  }
+    CXSourceLocation fileStart = clang_getLocationForOffset(tu, file, 0);
+    clang_CXRewriter_insertTextBefore(rewriter, fileStart, formattedHeader.c_str());
+}
 
-  // Inject hook code into each function body
-  for (const auto &func : functionLocations) {
+/**
+ * Inject hook code into a specific function
+ */
+void injectFunctionHook(CXRewriter rewriter, CXTranslationUnit tu, CXFile file, 
+                        const FunctionLocation& func, const std::string& injectionCode, 
+                        const CommandLineArgs& args) {
     unsigned int funcLines = func.endLine - func.startBodyLine + 1;
     if (args.minLines > 0 && funcLines < static_cast<unsigned>(args.minLines)) {
-      std::cerr << "Skipping short function: " << func.functionName
-                << " (" << funcLines << " lines)" << std::endl;
-      continue;
+        std::cerr << "Skipping short function: " << func.functionName
+                  << " (" << funcLines << " lines)" << std::endl;
+        return;
     }
 
-    std::string hookCode =
-        generateHookCode(func, injectionCode, args.injectionMode);
-    if (hookCode.empty())
-      continue;
+    std::string hookCode = generateHookCode(func, injectionCode, args.injectionMode);
+    if (hookCode.empty()) return;
 
     std::string injection = "\n" + INJECT_BEGIN + "\n";
     injection += hookCode;
     if (injection.back() != '\n') injection += "\n";
     injection += INJECT_END + "\n";
 
-    CXSourceLocation loc = clang_getLocationForOffset(
-        translationUnit, inputFile, func.bodyStartOffset);
+    CXSourceLocation loc = clang_getLocationForOffset(tu, file, func.bodyStartOffset);
     clang_CXRewriter_insertTextBefore(rewriter, loc, injection.c_str());
-    std::cerr << "Injected code into function: " << func.functionName
-              << std::endl;
-  }
+    std::cerr << "Injected code into function: " << func.functionName << std::endl;
+}
 
-  // Redirect stdout to output file if specified
-  if (args.outputFile != "/dev/stdout") {
-    if (!std::freopen(args.outputFile.c_str(), "w", stdout)) {
-      std::cerr << "Error: Failed to open output file: " << args.outputFile
-                << std::endl;
-      clang_CXRewriter_dispose(rewriter);
-      clang_disposeTranslationUnit(translationUnit);
-      clang_disposeIndex(index);
-      return 1;
+int main(int argc, char *argv[]) {
+    CommandLineArgs args;
+    if (!parseArguments(argc, argv, args)) return 1;
+
+    if (args.revert) return handleRevert(args);
+
+    // Read necessary files
+    std::string injectionCode = args.hookContentFile.empty() ? "" : readFile(args.hookContentFile);
+    while (!injectionCode.empty() && injectionCode.back() == '\n') injectionCode.pop_back();
+
+    std::string headerCode = args.headerContentFile.empty() ? "" : readFile(args.headerContentFile);
+
+    // Initialize libclang
+    CXIndex index = clang_createIndex(1, 0);
+    CXTranslationUnit tu = parseSourceFile(index, args.inputSourceFile);
+    if (!tu) {
+        clang_disposeIndex(index);
+        return 1;
     }
-  }
 
-  // Write out the rewritten source
-  clang_CXRewriter_writeMainFileToStdOut(rewriter);
+    CXFile inputFile = clang_getFile(tu, args.inputSourceFile.c_str());
+    if (!inputFile) {
+        std::cerr << "Error: Unable to get CXFile for " << args.inputSourceFile << std::endl;
+        clang_disposeTranslationUnit(tu);
+        clang_disposeIndex(index);
+        return 1;
+    }
 
-  if (args.outputFile != "/dev/stdout") {
-    std::cerr << "\nModified source written to: " << args.outputFile
-              << std::endl;
-  }
+    // Find functions
+    std::vector<std::regex> excludePatterns = readExcludePatterns(args.excludePatternFile);
+    std::vector<FunctionLocation> functionLocations;
+    VisitorClientData visitorData = {&functionLocations, inputFile, &excludePatterns};
 
-  // Clean up resources
-  clang_CXRewriter_dispose(rewriter);
-  clang_disposeTranslationUnit(translationUnit);
-  clang_disposeIndex(index);
+    CXCursor rootCursor = clang_getTranslationUnitCursor(tu);
+    clang_visitChildren(rootCursor, functionVisitor, &visitorData);
 
-  return 0;
+    std::cerr << "\nTotal functions found: " << functionLocations.size() << std::endl;
+
+    // Perform rewriting
+    CXRewriter rewriter = clang_CXRewriter_create(tu);
+
+    if (!headerCode.empty() || !functionLocations.empty()) {
+        injectHeader(rewriter, tu, inputFile, headerCode);
+    }
+
+    for (const auto& func : functionLocations) {
+        injectFunctionHook(rewriter, tu, inputFile, func, injectionCode, args);
+    }
+
+    // Output results
+    if (args.outputFile != "/dev/stdout") {
+        if (!std::freopen(args.outputFile.c_str(), "w", stdout)) {
+            std::cerr << "Error: Failed to open output file: " << args.outputFile << std::endl;
+            // Cleanup and exit
+        }
+    }
+
+    clang_CXRewriter_writeMainFileToStdOut(rewriter);
+
+    if (args.outputFile != "/dev/stdout") {
+        std::cerr << "\nModified source written to: " << args.outputFile << std::endl;
+    }
+
+    // Cleanup
+    clang_CXRewriter_dispose(rewriter);
+    clang_disposeTranslationUnit(tu);
+    clang_disposeIndex(index);
+
+    return 0;
 }
