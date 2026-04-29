@@ -37,11 +37,17 @@ struct ArgumentInfo {
 };
 
 /**
+ * Injection markers
+ */
+const std::string INJECT_BEGIN = "/* FHI_INJECT_BEGIN */";
+const std::string INJECT_END = "/* FHI_INJECT_END */";
+
+/**
  * Structure to hold function location information and name
  */
 struct FunctionLocation {
-  unsigned int startLine;       // Function definition start line
-  unsigned int startColumn;     // Function definition start column
+  unsigned int startBodyLine;   // Function body start line (the line of '{')
+  unsigned int startBodyColumn; // Function body start column (the column of '{')
   unsigned int endLine;         // Function definition end line
   unsigned int endColumn;       // Function definition end column
   std::string functionName;     // Function name

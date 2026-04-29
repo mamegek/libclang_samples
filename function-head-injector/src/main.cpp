@@ -17,8 +17,10 @@ int main(int argc, char *argv[]) {
   // Revert mode: strip previously injected blocks and exit
   if (args.revert) {
     std::string content = readFile(args.inputSourceFile);
-    std::regex block(
-        R"(\n?/\* FHI_INJECT_BEGIN \*/[\s\S]*?/\* FHI_INJECT_END \*/\n)");
+    // Escape markers for regex if necessary, but since they are simple /* */ we can construct the regex
+    std::string pattern = R"(\n?)" + std::regex_replace(INJECT_BEGIN, std::regex(R"(\*)"), R"(\*)") + 
+                         R"([\s\S]*?)" + std::regex_replace(INJECT_END, std::regex(R"(\*)"), R"(\*)") + R"(\n)";
+    std::regex block(pattern);
     std::string reverted = std::regex_replace(content, block, "");
     if (args.outputFile == "/dev/stdout") {
       std::cout << reverted;
@@ -102,13 +104,13 @@ int main(int argc, char *argv[]) {
   CXRewriter rewriter = clang_CXRewriter_create(translationUnit);
 
   // Inject header code at the beginning of the file
-  if (!headerCode.empty()) {
-    std::string formattedHeader = "/* FHI_INJECT_BEGIN */\n";
+  if (!headerCode.empty() || !functionLocations.empty()) {
+    std::string formattedHeader = INJECT_BEGIN + "\n";
     formattedHeader += headerCode;
     if (formattedHeader.back() != '\n') {
       formattedHeader += "\n";
     }
-    formattedHeader += "/* FHI_INJECT_END */\n";
+    formattedHeader += INJECT_END + "\n";
 
     CXSourceLocation fileStart =
         clang_getLocationForOffset(translationUnit, inputFile, 0);
@@ -118,7 +120,7 @@ int main(int argc, char *argv[]) {
 
   // Inject hook code into each function body
   for (const auto &func : functionLocations) {
-    unsigned int funcLines = func.endLine - func.startLine + 1;
+    unsigned int funcLines = func.endLine - func.startBodyLine + 1;
     if (args.minLines > 0 && funcLines < static_cast<unsigned>(args.minLines)) {
       std::cerr << "Skipping short function: " << func.functionName
                 << " (" << funcLines << " lines)" << std::endl;
@@ -130,10 +132,10 @@ int main(int argc, char *argv[]) {
     if (hookCode.empty())
       continue;
 
-    std::string injection = "\n/* FHI_INJECT_BEGIN */\n";
+    std::string injection = "\n" + INJECT_BEGIN + "\n";
     injection += hookCode;
     if (injection.back() != '\n') injection += "\n";
-    injection += "/* FHI_INJECT_END */\n";
+    injection += INJECT_END + "\n";
 
     CXSourceLocation loc = clang_getLocationForOffset(
         translationUnit, inputFile, func.bodyStartOffset);

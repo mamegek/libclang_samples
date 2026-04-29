@@ -1,3 +1,5 @@
+/* FHI_INJECT_BEGIN */
+/* FHI_INJECT_END */
 #include <stdio.h>
 
 // One-line function with body on same line
@@ -16,7 +18,9 @@ int zero() {
 
 // Nested braces
 void nested() {
-    printf(">> nested called\n");
+/* FHI_INJECT_BEGIN */
+printf(">> nested called\n");
+/* FHI_INJECT_END */
 
     if (1) {
         printf("inner\n");
@@ -31,7 +35,9 @@ void long_signature(int a, int b,
 
 // Function with no arguments and deep body
 void deep() {
-    printf(">> deep called\n");
+/* FHI_INJECT_BEGIN */
+printf(">> deep called\n");
+/* FHI_INJECT_END */
 
     {
         {
@@ -41,7 +47,9 @@ void deep() {
 }
 
 int main() {
-    printf(">> main called\n");
+/* FHI_INJECT_BEGIN */
+printf(">> main called\n");
+/* FHI_INJECT_END */
 
     add(1, 2);
     noop();

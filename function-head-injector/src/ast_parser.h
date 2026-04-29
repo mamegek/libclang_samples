@@ -6,6 +6,7 @@
 
 struct BodyStartInfo {
   size_t offset;              // Byte offset right after '{'
+  unsigned int line;          // Line of '{' (1-based)
   unsigned int column;        // Column of '{' (1-based)
   unsigned int firstStmtColumn; // Column of first statement (1-based, 0 if empty)
 };

@@ -1,11 +1,23 @@
+/* FHI_INJECT_BEGIN */
+/* FHI_INJECT_END */
 #include <stdio.h>
 
-int add(int a, int b) {DTRACE_PROBE2(app, add, a, b); return a + b; }
+int add(int a, int b) {
+/* FHI_INJECT_BEGIN */
+DTRACE_PROBE2(app, add, a, b);
+/* FHI_INJECT_END */
+ return a + b; }
 
-void print_message(const char *msg) {DTRACE_PROBE1(app, print_message, msg); printf("Message: %s\n", msg); }
+void print_message(const char *msg) {
+/* FHI_INJECT_BEGIN */
+DTRACE_PROBE1(app, print_message, msg);
+/* FHI_INJECT_END */
+ printf("Message: %s\n", msg); }
 
 int factorial(int n) {
-  DTRACE_PROBE1(app, factorial, n);
+/* FHI_INJECT_BEGIN */
+DTRACE_PROBE1(app, factorial, n);
+/* FHI_INJECT_END */
 
   if (n <= 1) {
     return 1;
@@ -14,7 +26,9 @@ int factorial(int n) {
 }
 
 double calculate_average(int *array, int size) {
-  DTRACE_PROBE2(app, calculate_average, array, size);
+/* FHI_INJECT_BEGIN */
+DTRACE_PROBE2(app, calculate_average, array, size);
+/* FHI_INJECT_END */
 
   if (size == 0) {
     return 0.0;
@@ -29,7 +43,9 @@ double calculate_average(int *array, int size) {
 }
 
 void swap(int *a, int *b) {
-  DTRACE_PROBE2(app, swap, a, b);
+/* FHI_INJECT_BEGIN */
+DTRACE_PROBE2(app, swap, a, b);
+/* FHI_INJECT_END */
 
   int temp = *a;
   *a = *b;
@@ -37,7 +53,9 @@ void swap(int *a, int *b) {
 }
 
 int main() {
-  DTRACE_PROBE(app, main);
+/* FHI_INJECT_BEGIN */
+DTRACE_PROBE(app, main);
+/* FHI_INJECT_END */
 
   printf("Testing functions\n");
 

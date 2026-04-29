@@ -1,24 +1,42 @@
+/* FHI_INJECT_BEGIN */
+/* FHI_INJECT_END */
 #include <stdio.h>
 
 // One-line function with body on same line
-int add(int a, int b) {printf(">> add called (a=%d, b=%d)\n", a, b); return a + b; }
+int add(int a, int b) {
+/* FHI_INJECT_BEGIN */
+printf(">> add called (a=%d, b=%d)\n", a, b);
+/* FHI_INJECT_END */
+ return a + b; }
 
 // Empty function body
-void noop() {printf(">> noop called\n");}
+void noop() {
+/* FHI_INJECT_BEGIN */
+printf(">> noop called\n");
+/* FHI_INJECT_END */
+}
 
 // Empty body with spaces
-void noop2() {printf(">> noop2 called\n");  }
+void noop2() {
+/* FHI_INJECT_BEGIN */
+printf(">> noop2 called\n");
+/* FHI_INJECT_END */
+  }
 
 // Function with only a single return
 int zero() {
-    printf(">> zero called\n");
+/* FHI_INJECT_BEGIN */
+printf(">> zero called\n");
+/* FHI_INJECT_END */
 
     return 0;
 }
 
 // Nested braces
 void nested() {
-    printf(">> nested called\n");
+/* FHI_INJECT_BEGIN */
+printf(">> nested called\n");
+/* FHI_INJECT_END */
 
     if (1) {
         printf("inner\n");
@@ -28,14 +46,18 @@ void nested() {
 // Multi-line signature, body on next line
 void long_signature(int a, int b,
                     int c, int d) {
-    printf(">> long_signature called (a=%d, b=%d, c=%d, d=%d)\n", a, b, c, d);
+/* FHI_INJECT_BEGIN */
+printf(">> long_signature called (a=%d, b=%d, c=%d, d=%d)\n", a, b, c, d);
+/* FHI_INJECT_END */
 
     printf("%d %d %d %d\n", a, b, c, d);
 }
 
 // Function with no arguments and deep body
 void deep() {
-    printf(">> deep called\n");
+/* FHI_INJECT_BEGIN */
+printf(">> deep called\n");
+/* FHI_INJECT_END */
 
     {
         {
@@ -45,7 +67,9 @@ void deep() {
 }
 
 int main() {
-    printf(">> main called\n");
+/* FHI_INJECT_BEGIN */
+printf(">> main called\n");
+/* FHI_INJECT_END */
 
     add(1, 2);
     noop();

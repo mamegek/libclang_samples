@@ -35,8 +35,8 @@ BodyStartInfo findFunctionBodyStart(CXCursor cursor) {
     CXSourceRange range = clang_getCursorExtent(bodyStmt);
     CXSourceLocation startLoc = clang_getRangeStart(range);
 
-    unsigned int offset, column;
-    clang_getSpellingLocation(startLoc, nullptr /*&file*/, nullptr /*&line*/,
+    unsigned int offset, column, line;
+    clang_getSpellingLocation(startLoc, nullptr /*&file*/, &line,
                               &column, &offset);
 
     // Get column of first statement inside body (for auto-indent)
@@ -52,10 +52,10 @@ BodyStartInfo findFunctionBodyStart(CXCursor cursor) {
         },
         &firstStmtColumn);
 
-    return {offset + 1, column, firstStmtColumn};
+    return {offset + 1, line, column, firstStmtColumn};
   }
 
-  return {std::string::npos, 0, 0}; // If not found
+  return {std::string::npos, 0, 0, 0}; // If not found
 }
 
 CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor /*parent*/,
@@ -85,9 +85,17 @@ CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor /*parent*/,
 
     // Process only function definitions (implementations, not declarations)
     if (clang_isCursorDefinition(cursor)) {
+      // Find the start position of function body
+      BodyStartInfo bodyInfo = findFunctionBodyStart(cursor);
+
+      if (bodyInfo.offset == std::string::npos) {
+        clang_disposeString(functionName);
+        return CXChildVisit_Continue;
+      }
+
       FunctionLocation func;
-      func.startLine = startLine;
-      func.startColumn = startColumn;
+      func.startBodyLine = bodyInfo.line; // Use body start line
+      func.startBodyColumn = bodyInfo.column; // Use body start column
       func.endLine = endLine;
       func.endColumn = endColumn;
       func.functionName = clang_getCString(functionName);
@@ -146,21 +154,16 @@ CXChildVisitResult functionVisitor(CXCursor cursor, CXCursor /*parent*/,
         return CXChildVisit_Continue;
       }
 
-      // Find the start position of function body
-      BodyStartInfo bodyInfo = findFunctionBodyStart(cursor);
+      func.bodyStartOffset = bodyInfo.offset;
+      func.bodyBraceColumn = bodyInfo.column;
+      func.bodyIndentColumn = bodyInfo.firstStmtColumn;
+      visitorData->functionLocations->push_back(
+          func); // Add found function to list
 
-      if (bodyInfo.offset != std::string::npos) {
-        func.bodyStartOffset = bodyInfo.offset;
-        func.bodyBraceColumn = bodyInfo.column;
-        func.bodyIndentColumn = bodyInfo.firstStmtColumn;
-        visitorData->functionLocations->push_back(
-            func); // Add found function to list
-
-        // Debug output: Display information about found function
-        std::cerr << "Found function: " << func.functionName << " at line "
-                  << startLine << ":" << startColumn << " to line " << endLine
-                  << ":" << endColumn << std::endl;
-      }
+      // Debug output: Display information about found function
+      std::cerr << "Found function: " << func.functionName << " at body line "
+                << func.startBodyLine << ":" << func.startBodyColumn << " to line " << endLine
+                << ":" << endColumn << std::endl;
     }
 
     clang_disposeString(functionName);

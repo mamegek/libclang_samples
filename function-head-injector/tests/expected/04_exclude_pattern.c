@@ -1,13 +1,29 @@
+/* FHI_INJECT_BEGIN */
+/* FHI_INJECT_END */
 #include <stdio.h>
 
-int add(int a, int b) {/******** DEBUG CODE ********/ printf(">> Entering function at %s:%d\n", __FILE__, __LINE__); /******** DEBUG CODE ********/ return a + b; }
+int add(int a, int b) {
+/* FHI_INJECT_BEGIN */
+/******** DEBUG CODE ********/
+printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
+/******** DEBUG CODE ********/
+/* FHI_INJECT_END */
+ return a + b; }
 
-void print_message(const char *msg) {/******** DEBUG CODE ********/ printf(">> Entering function at %s:%d\n", __FILE__, __LINE__); /******** DEBUG CODE ********/ printf("Message: %s\n", msg); }
+void print_message(const char *msg) {
+/* FHI_INJECT_BEGIN */
+/******** DEBUG CODE ********/
+printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
+/******** DEBUG CODE ********/
+/* FHI_INJECT_END */
+ printf("Message: %s\n", msg); }
 
 int factorial(int n) {
-  /******** DEBUG CODE ********/
-  printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
-  /******** DEBUG CODE ********/
+/* FHI_INJECT_BEGIN */
+/******** DEBUG CODE ********/
+printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
+/******** DEBUG CODE ********/
+/* FHI_INJECT_END */
 
   if (n <= 1) {
     return 1;
@@ -16,9 +32,11 @@ int factorial(int n) {
 }
 
 double calculate_average(int *array, int size) {
-  /******** DEBUG CODE ********/
-  printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
-  /******** DEBUG CODE ********/
+/* FHI_INJECT_BEGIN */
+/******** DEBUG CODE ********/
+printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
+/******** DEBUG CODE ********/
+/* FHI_INJECT_END */
 
   if (size == 0) {
     return 0.0;
@@ -33,9 +51,11 @@ double calculate_average(int *array, int size) {
 }
 
 void swap(int *a, int *b) {
-  /******** DEBUG CODE ********/
-  printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
-  /******** DEBUG CODE ********/
+/* FHI_INJECT_BEGIN */
+/******** DEBUG CODE ********/
+printf(">> Entering function at %s:%d\n", __FILE__, __LINE__);
+/******** DEBUG CODE ********/
+/* FHI_INJECT_END */
 
   int temp = *a;
   *a = *b;

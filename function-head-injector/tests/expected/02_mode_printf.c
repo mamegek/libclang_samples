@@ -1,11 +1,23 @@
+/* FHI_INJECT_BEGIN */
+/* FHI_INJECT_END */
 #include <stdio.h>
 
-int add(int a, int b) {printf(">> add called (a=%d, b=%d)\n", a, b); return a + b; }
+int add(int a, int b) {
+/* FHI_INJECT_BEGIN */
+printf(">> add called (a=%d, b=%d)\n", a, b);
+/* FHI_INJECT_END */
+ return a + b; }
 
-void print_message(const char *msg) {printf(">> print_message called (msg=%s)\n", msg); printf("Message: %s\n", msg); }
+void print_message(const char *msg) {
+/* FHI_INJECT_BEGIN */
+printf(">> print_message called (msg=%s)\n", msg);
+/* FHI_INJECT_END */
+ printf("Message: %s\n", msg); }
 
 int factorial(int n) {
-  printf(">> factorial called (n=%d)\n", n);
+/* FHI_INJECT_BEGIN */
+printf(">> factorial called (n=%d)\n", n);
+/* FHI_INJECT_END */
 
   if (n <= 1) {
     return 1;
@@ -14,7 +26,9 @@ int factorial(int n) {
 }
 
 double calculate_average(int *array, int size) {
-  printf(">> calculate_average called (array=%p, size=%d)\n", array, size);
+/* FHI_INJECT_BEGIN */
+printf(">> calculate_average called (array=%p, size=%d)\n", array, size);
+/* FHI_INJECT_END */
 
   if (size == 0) {
     return 0.0;
@@ -29,7 +43,9 @@ double calculate_average(int *array, int size) {
 }
 
 void swap(int *a, int *b) {
-  printf(">> swap called (a=%p, b=%p)\n", a, b);
+/* FHI_INJECT_BEGIN */
+printf(">> swap called (a=%p, b=%p)\n", a, b);
+/* FHI_INJECT_END */
 
   int temp = *a;
   *a = *b;
@@ -37,7 +53,9 @@ void swap(int *a, int *b) {
 }
 
 int main() {
-  printf(">> main called\n");
+/* FHI_INJECT_BEGIN */
+printf(">> main called\n");
+/* FHI_INJECT_END */
 
   printf("Testing functions\n");
 
